@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VB → Python Migration Orchestrator — Usage Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Variables ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f0f4f9;
+      --surface:   #ffffff;
+      --border:    #e2e8f0;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --code-bg:   #0f172a;
+      --code-text: #e2e8f0;
+
+      --step1: #6366f1;
+      --step2: #a855f7;
+      --step3: #10b981;
+      --warn:  #f59e0b;
+      --danger:#ef4444;
+      --info:  #0ea5e9;
+
+      --sidebar-w: 260px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    a { color: var(--info); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ──────────────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: #0c1526;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-logo {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-logo .logo-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #f8fafc;
+      line-height: 1.3;
+    }
+    .sidebar-logo .logo-sub {
+      font-size: 10px;
+      color: #64748b;
+      letter-spacing: .4px;
+      margin-top: 3px;
+    }
+
+    .nav-group { padding: 16px 0 4px; }
+    .nav-group-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #475569;
+      padding: 0 20px 6px;
+    }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 20px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-link:hover { background: rgba(255,255,255,.05); color: #e2e8f0; text-decoration: none; }
+    .nav-link.active { color: #38bdf8; border-left-color: #38bdf8; background: rgba(56,189,248,.07); }
+    .nav-link .nav-icon { font-size: 14px; flex-shrink: 0; }
+
+    .audience-badge {
+      margin: auto 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .aud {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10px; font-weight: 600;
+      padding: 6px 10px; border-radius: 7px;
+    }
+    .aud-biz { background: rgba(99,102,241,.15); color: #a5b4fc; }
+    .aud-tech { background: rgba(16,185,129,.15); color: #6ee7b7; }
+
+    /* ── Main Content ─────────────────────────────────────────────── */
+    .main { flex: 1; min-width: 0; }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(160deg, #0c1526 0%, #1a2d4a 55%, #0c1526 100%);
+      padding: 52px 56px 44px;
+    }
+    .hero-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #38bdf8;
+      margin-bottom: 12px;
+    }
+    .hero h1 {
+      font-size: 34px;
+      font-weight: 900;
+      color: #f8fafc;
+      letter-spacing: -1.2px;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+    .hero h1 .accent { color: #38bdf8; }
+    .hero h1 .arrow  { color: #475569; margin: 0 6px; }
+    .hero-sub {
+      font-size: 14px;
+      color: #94a3b8;
+      max-width: 640px;
+      margin-bottom: 24px;
+    }
+    .hero-chips {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .chip {
+      font-size: 11px; font-weight: 600;
+      padding: 5px 13px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .chip-blue  { color: #38bdf8; border-color: rgba(56,189,248,.35); background: rgba(56,189,248,.07); }
+    .chip-green { color: #34d399; border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.07); }
+    .chip-purple{ color: #c084fc; border-color: rgba(192,132,252,.35); background: rgba(192,132,252,.07); }
+
+    /* ── Sections ─────────────────────────────────────────────────── */
+    .section { padding: 44px 56px; border-bottom: 1px solid var(--border); }
+    .section:last-child { border-bottom: none; }
+
+    .section-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 28px;
+    }
+    .section-icon {
+      width: 40px; height: 40px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .section-title { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+    .section-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    h2 { font-size: 17px; font-weight: 700; margin: 28px 0 10px; }
+    h3 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; color: #334155; }
+    p  { margin-bottom: 12px; color: #334155; }
+
+    /* ── Audience Tags ────────────────────────────────────────────── */
+    .tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; border-radius: 4px;
+      padding: 2px 8px; margin-left: 8px; vertical-align: middle;
+    }
+    .tag-biz  { background: #ede9fe; color: #7c3aed; }
+    .tag-tech { background: #d1fae5; color: #065f46; }
+
+    /* ── Code Blocks ──────────────────────────────────────────────── */
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 18px 22px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      margin: 12px 0 18px;
+      position: relative;
+    }
+    pre .comment { color: #475569; }
+    pre .kw    { color: #93c5fd; }
+    pre .str   { color: #86efac; }
+    pre .flag  { color: #fde68a; }
+    pre .cmd   { color: #67e8f9; }
+    pre .num   { color: #f9a8d4; }
+    pre .prompt{ color: #475569; user-select: none; }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Callout Boxes ────────────────────────────────────────────── */
+    .callout {
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0 20px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    .callout-text  { font-size: 12px; color: #334155; line-height: 1.6; }
+    .callout-info   { background: #f0f9ff; border-left: 4px solid #0ea5e9; }
+    .callout-warn   { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .callout-danger { background: #fff1f2; border-left: 4px solid #ef4444; }
+    .callout-success{ background: #f0fdf4; border-left: 4px solid #16a34a; }
+    .callout-info   .callout-title { color: #0369a1; }
+    .callout-warn   .callout-title { color: #b45309; }
+    .callout-danger .callout-title { color: #b91c1c; }
+    .callout-success .callout-title { color: #15803d; }
+
+    /* ── Cards ────────────────────────────────────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 16px 0 24px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+    .card-icon { font-size: 24px; margin-bottom: 10px; }
+    .card-title { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+    .card-desc  { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+    /* ── Step Pipeline Cards ──────────────────────────────────────── */
+    .pipeline-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 22px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,.04);
+    }
+    .ps-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ps-num {
+      width: 32px; height: 32px; border-radius: 9px;
+      font-size: 15px; font-weight: 900; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .ps-title { font-size: 14px; font-weight: 800; }
+    .ps-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .ps-body  { padding: 20px 22px; }
+
+    /* ── Agent Row ────────────────────────────────────────────────── */
+    .agent-row {
+      display: flex; align-items: stretch; gap: 0;
+      margin: 14px 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .agent-pill {
+      background: #f8fafc;
+      border-right: 1px solid var(--border);
+      padding: 12px 16px;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+    .agent-pill .ap-label { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+    .agent-pill .ap-name  { font-size: 13px; font-weight: 700; margin: 2px 0 1px; }
+    .agent-pill .ap-file  { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .agent-detail { padding: 12px 16px; flex: 1; }
+    .agent-detail p { font-size: 12px; color: #334155; margin-bottom: 6px; }
+    .agent-detail p:last-child { margin-bottom: 0; }
+    .agent-out {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    }
+    .out-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .out-json   { background: #fef3c7; color: #92400e; }
+    .out-md     { background: #e0e7ff; color: #3730a3; }
+    .out-py     { background: #dcfce7; color: #166534; }
+    .out-bool   { background: #fce7f3; color: #9d174d; }
+
+    /* ── Checklist ────────────────────────────────────────────────── */
+    .checklist { list-style: none; margin: 10px 0 18px; }
+    .checklist li {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 6px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+      color: #334155;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .check-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .check-label { font-weight: 600; }
+    .check-note  { color: var(--muted); font-size: 12px; }
+
+    /* ── Table ────────────────────────────────────────────────────── */
+    table {
+      width: 100%; border-collapse: collapse;
+      margin: 14px 0 22px;
+      font-size: 12.5px;
+      background: var(--surface);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,.04);
+    }
+    th {
+      background: #f1f5f9;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f8fafc;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    /* ── File Tree ────────────────────────────────────────────────── */
+    .filetree {
+      background: var(--code-bg);
+      border-radius: 10px;
+      padding: 18px 22px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.9;
+      color: var(--code-text);
+    }
+    .filetree .ft-dir  { color: #93c5fd; font-weight: 600; }
+    .filetree .ft-file { color: #d1d5db; }
+    .filetree .ft-note { color: #475569; }
+    .filetree .ft-gen  { color: #86efac; }
+
+    /* ── Flow diagram ─────────────────────────────────────────────── */
+    .flow {
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: wrap; margin: 12px 0 18px;
+    }
+    .flow-node {
+      padding: 7px 14px; border-radius: 8px;
+      font-size: 12px; font-weight: 700;
+    }
+    .flow-arr { color: #94a3b8; font-size: 18px; }
+    .fn-blue   { background: #e0f2fe; color: #0369a1; }
+    .fn-purple { background: #f3e8ff; color: #7e22ce; }
+    .fn-green  { background: #dcfce7; color: #15803d; }
+    .fn-yellow { background: #fef9c3; color: #854d0e; }
+    .fn-red    { background: #fff1f2; color: #be123c; }
+    .fn-dark   { background: #1e293b; color: #e2e8f0; }
+    .fn-gate   { background: #fef3c7; color: #b45309; border: 2px dashed #fcd34d; }
+
+    /* ── Tabs ─────────────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 0; border-bottom: 2px solid var(--border); }
+    .tab-btn {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      padding: 8px 16px; border-radius: 8px 8px 0 0;
+      cursor: pointer; border: 1px solid transparent;
+      border-bottom: none; background: none;
+      transition: all .15s;
+    }
+    .tab-btn.active {
+      color: var(--info); background: var(--surface);
+      border-color: var(--border); border-bottom-color: var(--surface);
+      margin-bottom: -2px;
+    }
+    .tab-panel { display: none; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; padding: 18px 20px; }
+    .tab-panel.active { display: block; }
+
+    /* ── Output artifact boxes ────────────────────────────────────── */
+    .artifact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+    .artifact-card {
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; background: var(--surface);
+    }
+    .artifact-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--info); margin-bottom: 5px;
+    }
+    .artifact-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* ── Scrollbar ────────────────────────────────────────────────── */
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    /* ── Active section highlight ─────────────────────────────────── */
+    .section { scroll-margin-top: 20px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ══════════════════════════════════════════════════════
+       SIDEBAR
+  ═══════════════════════════════════════════════════════ -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">VB → Python<br>Migration Orchestrator</div>
+      <div class="logo-sub">Usage &amp; Operations Guide</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Overview</div>
+      <a href="#overview" class="nav-link active"><span class="nav-icon">🏗</span>Architecture &amp; Design</a>
+      <a href="#prerequisites" class="nav-link"><span class="nav-icon">⚙️</span>Prerequisites &amp; Setup</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Input &amp; Pipeline</div>
+      <a href="#input" class="nav-link"><span class="nav-icon">📂</span>Preparing VB Input</a>
+      <a href="#step1" class="nav-link"><span class="nav-icon">🔍</span>Step 1 — Discovery</a>
+      <a href="#step2" class="nav-link"><span class="nav-icon">🧪</span>Step 2 — Test Generation</a>
+      <a href="#step3" class="nav-link"><span class="nav-icon">⚡</span>Step 3 — Conversion</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Quality &amp; Testing</div>
+      <a href="#checklist" class="nav-link"><span class="nav-icon">✅</span>Quality Checklist</a>
+      <a href="#testcases" class="nav-link"><span class="nav-icon">📋</span>Test Case Review</a>
+      <a href="#pytest" class="nav-link"><span class="nav-icon">▶️</span>Running pytest</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Infrastructure</div>
+      <a href="#mcp" class="nav-link"><span class="nav-icon">🔌</span>MCP Servers</a>
+      <a href="#output" class="nav-link"><span class="nav-icon">📦</span>Output Artifacts</a>
+      <a href="#troubleshoot" class="nav-link"><span class="nav-icon">🔧</span>Troubleshooting</a>
+    </div>
+
+    <div class="audience-badge">
+      <div class="aud aud-biz">🎓 Stakeholders / Reviewers</div>
+      <div class="aud aud-tech">🔧 Migration Engineers</div>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════
+       MAIN
+  ═══════════════════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow">Usage &amp; Operations Guide</div>
+      <h1>
+        <span class="accent">VB</span>
+        <span class="arrow">→</span>
+        Python Migration Orchestrator
+      </h1>
+      <p class="hero-sub">
+        A multi-agent AI pipeline that converts Visual Basic modules to idiomatic, type-annotated Python — with full test coverage — in three automated steps. This guide covers everything from setting up your first migration to reviewing test output and troubleshooting failures.
+      </p>
+      <div class="hero-chips">
+        <span class="chip chip-blue">Hub &amp; Spoke Architecture</span>
+        <span class="chip chip-green">Test-Driven Migration</span>
+        <span class="chip chip-purple">Claude AI · Anthropic</span>
+        <span class="chip chip-blue">MCP Infrastructure</span>
+      </div>
+    </div>
+
+    <!-- ══════════════ SECTION: Architecture ══════════════ -->
+    <section class="section" id="overview">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0f2fe">🏗</div>
+        <div>
+          <div class="section-title">Architecture &amp; Design</div>
+          <div class="section-desc">How the system is structured and why</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-biz">🎓 Stakeholders</span>
+        The orchestrator uses a <strong>Hub &amp; Spoke</strong> pattern — one central Hub Agent coordinates
+        a set of specialised agents (spokes), each responsible for a single concern such as understanding VB code,
+        writing tests, or generating Python. No agent does more than one job.
+      </p>
+      <p>
+        <span class="tag tag-tech">🔧 Tech Team</span>
+        Every agent calls the <strong>Claude API</strong> (Anthropic) with a dedicated system prompt.
+        The Hub Agent is the sole keeper of migration state; spoke agents are stateless and receive all
+        context they need in their prompt.
+      </p>
+
+      <h2>Pipeline at a Glance</h2>
+      <div class="flow">
+        <div class="flow-node fn-dark">CLI<br><small>You</small></div>
+        <div class="flow-arr">⇄</div>
+        <div class="flow-node fn-blue">Hub Agent<br><small>Orchestrator</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-purple">Step 1<br><small>Discovery</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-purple">Step 2<br><small>TDD</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">Step 3<br><small>Convert</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">✓ Done<br><small>PR Created</small></div>
+      </div>
+
+      <h2>Agent Inventory</h2>
+      <table>
+        <thead>
+          <tr><th>Agent / Component</th><th>Step</th><th>File</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Hub Agent</strong></td><td>All</td><td><code>agents/hub_agent.py</code></td><td>Central orchestrator — maintains global state, dispatches spoke agents, escalates to CLI</td></tr>
+          <tr><td>Understand Agent</td><td>1-A</td><td><code>agents/step1/understand_agent.py</code></td><td>Extracts business logic, data structures, COM calls, control flow into structured JSON</td></tr>
+          <tr><td>Document Agent</td><td>1-B</td><td><code>agents/step1/document_agent.py</code></td><td>Converts JSON analysis to a human-readable Markdown specification</td></tr>
+          <tr><td>Architect Agent</td><td>1-C</td><td><code>agents/step1/architect_agent.py</code></td><td>Designs Python dataclasses, type hints, module boundaries, public API</td></tr>
+          <tr><td>AST Checker</td><td>1 val</td><td><code>agents/step1/ast_checker.py</code></td><td>Regex-based validator — verifies all VB Sub/Function names were captured</td></tr>
+          <tr><td>Arch Auditor</td><td>1 val</td><td><code>agents/step1/arch_auditor.py</code></td><td>LLM reviewer — ensures architecture has no VB-isms, uses Python idioms</td></tr>
+          <tr><td>Functional Tests Agent</td><td>2-A ‖</td><td><code>agents/step2/functional_tests_agent.py</code></td><td>Writes pytest unit tests from the Markdown spec (runs in parallel with 2-B)</td></tr>
+          <tr><td>Golden Master Agent</td><td>2-B ‖</td><td><code>agents/step2/golden_master_agent.py</code></td><td>Creates characterisation tests from historical VB I/O data (or synthetic samples)</td></tr>
+          <tr><td>Test Auditor</td><td>2 val</td><td><code>agents/step2/test_auditor.py</code></td><td>Reviews &amp; merges both suites — removes trivial assertions, fills coverage gaps</td></tr>
+          <tr><td>Dry Run Runner</td><td>2 run</td><td><code>agents/step2/dry_run_runner.py</code></td><td>Runs <code>pytest --collect-only</code> — validates test syntax before any app code exists</td></tr>
+          <tr><td>Converter Agent</td><td>3-A</td><td><code>agents/step3/converter_agent.py</code></td><td>Writes Python application code; retries with pytest error output on failure</td></tr>
+          <tr><td>mypy Checker</td><td>3 val</td><td><code>agents/step3/mypy_checker.py</code></td><td>Runs <code>mypy --strict</code> on generated code before the full test suite</td></tr>
+          <tr><td>pytest Runner</td><td>3 run</td><td><code>agents/step3/pytest_runner.py</code></td><td>Executes the full merged test suite; routes failures back to Converter Agent</td></tr>
+        </tbody>
+      </table>
+
+      <h2>MCP Infrastructure</h2>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">📁</div>
+          <div class="card-title">File System MCP</div>
+          <div class="card-desc">Reads VB source files; writes Python output, Markdown specs, architecture JSON. Wraps all I/O so the storage backend can change without touching agents.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">💻</div>
+          <div class="card-title">Host Execution MCP</div>
+          <div class="card-desc">Sandboxed shell runner for <code>pytest</code> and <code>mypy</code>. Returns full stdout/stderr to the requesting agent for self-correction.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🗄️</div>
+          <div class="card-title">Vector DB MCP (Qdrant)</div>
+          <div class="card-desc">Translation memory — stores solved VB→Python patterns so the Converter can look up similar prior work instead of re-deriving it on every module.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🐙</div>
+          <div class="card-title">GitHub MCP</div>
+          <div class="card-desc">Creates a feature branch and pull request for each migrated module, attaching test results to the PR description. Optional — disable if you use a different VCS.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Prerequisites ══════════════ -->
+    <section class="section" id="prerequisites">
+      <div class="section-header">
+        <div class="section-icon" style="background:#dcfce7">⚙️</div>
+        <div>
+          <div class="section-title">Prerequisites &amp; Setup</div>
+          <div class="section-desc">Everything you need before running the first migration</div>
+        </div>
+      </div>
+
+      <span class="tag tag-tech">🔧 Tech Team</span>
+
+      <h2>System Requirements</h2>
+      <table>
+        <thead><tr><th>Requirement</th><th>Minimum</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Python</td><td>3.11+</td><td>Uses <code>match</code>, PEP 604 union types, and <code>tomllib</code></td></tr>
+          <tr><td>Anthropic API Key</td><td>Required</td><td>Create at console.anthropic.com</td></tr>
+          <tr><td>Qdrant</td><td>Optional</td><td>Translation memory — pipeline degrades gracefully without it</td></tr>
+          <tr><td>GitHub Token</td><td>Optional</td><td>Auto PR creation — scope: <code>repo</code></td></tr>
+          <tr><td>mypy</td><td>Installed by pip</td><td>Used by Step 3 validator</td></tr>
+          <tr><td>pytest</td><td>Installed by pip</td><td>Used by Steps 2 &amp; 3</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Installation</h2>
+<pre><span class="prompt"># 1. Clone / enter the project directory</span>
+<span class="cmd">cd</span> college_project
+
+<span class="prompt"># 2. Create a virtual environment (recommended)</span>
+<span class="cmd">python</span> -m venv .venv
+<span class="cmd">source</span> .venv/bin/activate      <span class="comment"># Windows: .venv\Scripts\activate</span>
+
+<span class="prompt"># 3. Install dependencies</span>
+<span class="cmd">pip</span> install -r requirements.txt</pre>
+
+      <h2>Environment Variables</h2>
+<pre><span class="prompt"># Copy the template and fill in your values</span>
+<span class="cmd">cp</span> .env.example .env</pre>
+
+      <table>
+        <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>ANTHROPIC_API_KEY</code></td><td>✅ Yes</td><td>Your Anthropic API key — all Claude calls use this</td></tr>
+          <tr><td><code>HUB_MODEL</code></td><td>No</td><td>Claude model for the Hub Agent (default: <code>claude-opus-4-7</code>)</td></tr>
+          <tr><td><code>AGENT_MODEL</code></td><td>No</td><td>Claude model for spoke agents (default: <code>claude-sonnet-4-6</code>)</td></tr>
+          <tr><td><code>MAX_RETRIES</code></td><td>No</td><td>Self-correction budget in Step 3 (default: 3)</td></tr>
+          <tr><td><code>COMPLEXITY_THRESHOLD</code></td><td>No</td><td>Score 0–1 above which human gate triggers (default: 0.7)</td></tr>
+          <tr><td><code>QDRANT_URL</code></td><td>No</td><td>Qdrant server URL (default: <code>http://localhost:6333</code>)</td></tr>
+          <tr><td><code>QDRANT_API_KEY</code></td><td>No</td><td>Qdrant API key (leave blank for local)</td></tr>
+          <tr><td><code>GITHUB_TOKEN</code></td><td>No</td><td>GitHub personal access token (scope: <code>repo</code>)</td></tr>
+          <tr><td><code>GITHUB_REPO</code></td><td>No</td><td>Target repo in <code>owner/repo</code> format</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Verify Installation</h2>
+<pre><span class="cmd">python</span> main.py --help</pre>
+      <p>You should see the CLI help output with <code>SOURCE_DIR</code>, <code>--out</code>, <code>--retries</code>, and <code>--threshold</code> options.</p>
+    </section>
+
+    <!-- ══════════════ SECTION: Input ══════════════ -->
+    <section class="section" id="input">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fce7f3">📂</div>
+        <div>
+          <div class="section-title">Preparing Your VB Input</div>
+          <div class="section-desc">What to provide and how to organise source files</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-biz">🎓 Stakeholders</span>
+        The migration system reads your existing Visual Basic source files directly — no conversion or pre-processing is needed. Simply point the tool at the directory containing your <code>.bas</code>, <code>.cls</code>, or <code>.vb</code> files.
+      </p>
+      <p>
+        <span class="tag tag-tech">🔧 Tech Team</span>
+        The File System MCP scans the source directory recursively for files with extensions
+        <code>.vb</code>, <code>.bas</code>, <code>.cls</code>, <code>.frm</code>, and <code>.vbs</code>.
+        Each file is treated as one independent module and processed in sequence.
+      </p>
+
+      <h2>Supported File Types</h2>
+      <table>
+        <thead><tr><th>Extension</th><th>VB Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>.bas</code></td><td>Standard Module</td><td>Free-standing Sub/Function procedures — most common</td></tr>
+          <tr><td><code>.cls</code></td><td>Class Module</td><td>VB classes with <code>Class_Initialize</code> / <code>Class_Terminate</code></td></tr>
+          <tr><td><code>.frm</code></td><td>Form Module</td><td>UI logic — only business logic is migrated; UI is excluded</td></tr>
+          <tr><td><code>.vb</code></td><td>VB.NET</td><td>VB.NET syntax is also supported</td></tr>
+          <tr><td><code>.vbs</code></td><td>VBScript</td><td>Standalone scripts</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Recommended Source Directory Layout</h2>
+      <div class="filetree">
+<span class="ft-dir">your_vb_project/</span>
+├── <span class="ft-dir">modules/</span>
+│   ├── <span class="ft-file">InvoiceCalculator.bas</span>     <span class="ft-note">← business logic</span>
+│   ├── <span class="ft-file">CustomerRepository.cls</span>    <span class="ft-note">← data access</span>
+│   └── <span class="ft-file">ReportFormatter.bas</span>       <span class="ft-note">← presentation</span>
+├── <span class="ft-dir">forms/</span>
+│   └── <span class="ft-file">MainForm.frm</span>              <span class="ft-note">← UI (logic extracted only)</span>
+└── <span class="ft-dir">io_samples/</span>                    <span class="ft-note">← optional: historical I/O data</span>
+    ├── <span class="ft-file">InvoiceCalculator_io.json</span>
+    └── <span class="ft-file">CustomerRepository_io.json</span>
+      </div>
+
+      <h2>Historical I/O Samples (Optional but Recommended)</h2>
+      <p>
+        If you have logs or recorded inputs/outputs from the original VB system, place them as JSON files
+        alongside your source. The <strong>Golden Master Agent</strong> uses them to create characterisation
+        tests — the strongest guarantee that migrated code behaves identically to the original.
+      </p>
+<pre><span class="comment">// io_samples/InvoiceCalculator_io.json</span>
+[
+  {
+    <span class="str">"input"</span>: { <span class="str">"items"</span>: [{ <span class="str">"qty"</span>: <span class="num">2</span>, <span class="str">"unit_price"</span>: <span class="num">50.00</span> }], <span class="str">"discount_pct"</span>: <span class="num">0.1</span>, <span class="str">"vat_rate"</span>: <span class="num">0.2</span> },
+    <span class="str">"expected_output"</span>: <span class="num">108.00</span>
+  }
+]</pre>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body">
+          <div class="callout-title">No I/O samples?</div>
+          <div class="callout-text">The Golden Master Agent will synthesise representative samples from the Markdown spec. Real data is always better, but synthetic samples still provide meaningful regression coverage.</div>
+        </div>
+      </div>
+
+      <h2>Quick Start Command</h2>
+<pre><span class="cmd">python</span> main.py your_vb_project/ \
+    --out output/ \
+    --retries <span class="num">3</span> \
+    --threshold <span class="num">0.7</span></pre>
+    </section>
+
+    <!-- ══════════════ SECTION: Step 1 ══════════════ -->
+    <section class="section" id="step1">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0e7ff">🔍</div>
+        <div>
+          <div class="section-title">Step 1 — Discovery, Documentation &amp; Architecture</div>
+          <div class="section-desc">Understanding the VB module and designing the Python equivalent</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-biz">🎓 Stakeholders</span>
+        Step 1 answers the question <em>"What does this VB code actually do?"</em> It produces a plain-English
+        Markdown document you can read and a machine-readable architecture blueprint for the Python replacement.
+        A human review gate triggers automatically for complex or problematic modules.
+      </p>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:var(--step1)">A</div>
+          <div>
+            <div class="ps-title">Understand Agent</div>
+            <div class="ps-sub">agents/step1/understand_agent.py · Model: claude-sonnet-4-6</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Reads the VB source and produces a structured JSON analysis covering all procedures, data structures, COM/API calls, control flow, error handlers, and a complexity score (0–1).</p>
+          <div class="agent-out">
+            <span class="out-badge out-json">AnalysisResult JSON</span>
+            <span class="out-badge out-json">complexity_score: 0.0–1.0</span>
+          </div>
+          <h3>What to check</h3>
+          <ul class="checklist">
+            <li><span class="check-icon">🔍</span><div><span class="check-label">All Sub/Function names captured</span><br><span class="check-note">The AST Checker (see below) flags any procedures found in source but missing from the analysis.</span></div></li>
+            <li><span class="check-icon">🔍</span><div><span class="check-label">Complexity score is reasonable</span><br><span class="check-note">0.0 = trivial CRUD. 1.0 = deeply nested COM automation with multiple error paths. Score ≥ 0.7 triggers the human gate.</span></div></li>
+            <li><span class="check-icon">🔍</span><div><span class="check-label">COM/API calls listed</span><br><span class="check-note">Every external dependency must be identified here — these become dependency-injection points in the architecture.</span></div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:var(--step1)">B</div>
+          <div>
+            <div class="ps-title">Document Agent</div>
+            <div class="ps-sub">agents/step1/document_agent.py · Model: claude-sonnet-4-6</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Converts the JSON analysis into a Markdown specification covering overview, inputs/outputs table, numbered business rules, data structure tables, error conditions, and migration notes for VB-specific idioms.</p>
+          <div class="agent-out">
+            <span class="out-badge out-md">{module}_spec.md</span>
+          </div>
+          <h3>What to check</h3>
+          <ul class="checklist">
+            <li><span class="check-icon">📋</span><div><span class="check-label">Business rules are accurate</span><br><span class="check-note">Have a domain expert read the numbered list. These rules are the source-of-truth for test generation in Step 2.</span></div></li>
+            <li><span class="check-icon">📋</span><div><span class="check-label">All VB idioms noted</span><br><span class="check-note">GoTo, On Error Resume Next, static variables, and VB-specific types must appear in "Migration Notes".</span></div></li>
+            <li><span class="check-icon">📋</span><div><span class="check-label">Inputs/outputs table complete</span><br><span class="check-note">Every public procedure must have a row showing parameters, types, and return values.</span></div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:var(--step1)">C</div>
+          <div>
+            <div class="ps-title">Architect Agent</div>
+            <div class="ps-sub">agents/step1/architect_agent.py · Model: claude-sonnet-4-6</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Designs the Python equivalent: Pydantic/dataclass models, fully-annotated public API signatures, module boundaries, and dependency injection points for all external services.</p>
+          <div class="agent-out">
+            <span class="out-badge out-json">{module}_architecture.json</span>
+          </div>
+          <h3>What to check</h3>
+          <ul class="checklist">
+            <li><span class="check-icon">🏛</span><div><span class="check-label">No global mutable state</span><br><span class="check-note">The Arch Auditor flags this automatically. All shared data must flow through function parameters or injected services.</span></div></li>
+            <li><span class="check-icon">🏛</span><div><span class="check-label">All public functions fully typed</span><br><span class="check-note">Every entry in <code>public_api</code> must have a complete signature: <code>fn(arg: Type) -&gt; ReturnType</code>.</span></div></li>
+            <li><span class="check-icon">🏛</span><div><span class="check-label">COM objects become injected abstractions</span><br><span class="check-note">e.g. <code>CreateObject("ADODB.Connection")</code> → <code>DatabaseConnection</code> protocol injected into the constructor.</span></div></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>Step 1 Validators</h2>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:#64748b; font-size:11px">VAL</div>
+          <div>
+            <div class="ps-title">AST Checker + Architecture Auditor</div>
+            <div class="ps-sub">agents/step1/ast_checker.py &amp; arch_auditor.py</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <table>
+            <thead><tr><th>Validator</th><th>How it works</th><th>On failure</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>AST Checker</strong></td>
+                <td>Regex scan of VB source for all Sub/Function names, compared against the Understand Agent output. Also flags GoTo and On Error.</td>
+                <td>Issues logged as warnings; pipeline continues (non-blocking) but the Hub logs missing procedures.</td>
+              </tr>
+              <tr>
+                <td><strong>Arch Auditor</strong></td>
+                <td>Claude LLM review of the architecture JSON — checks for global state, missing type hints, VB-isms, and poor OOP.</td>
+                <td>If <code>passed: false</code> AND complexity ≥ threshold, the Human Gate is triggered.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h2>Human Gate</h2>
+      <div class="callout callout-warn">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-body">
+          <div class="callout-title">When does it trigger?</div>
+          <div class="callout-text">
+            The Human Gate triggers when <strong>complexity_score ≥ COMPLEXITY_THRESHOLD</strong> (default 0.7)
+            OR when the Arch Auditor returns <code>passed: false</code>.
+            The CLI pauses and displays the module summary with all issues listed.
+          </div>
+        </div>
+      </div>
+
+      <p><strong>Your options at the Human Gate:</strong></p>
+      <table>
+        <thead><tr><th>Action</th><th>What happens</th></tr></thead>
+        <tbody>
+          <tr><td>Type <code>y</code> (approve)</td><td>Pipeline continues to Step 2 with the current architecture</td></tr>
+          <tr><td>Type <code>n</code> (reject)</td><td>Module is marked FAILED; pipeline moves to the next module. Come back to fix the VB source or adjust the threshold.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body">
+          <div class="callout-title">Adjusting the threshold</div>
+          <div class="callout-text">Run with <code>--threshold 0.9</code> to skip human review for all but the most complex modules. Run with <code>--threshold 0.0</code> to require review on every module.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Step 2 ══════════════ -->
+    <section class="section" id="step2">
+      <div class="section-header">
+        <div class="section-icon" style="background:#f3e8ff">🧪</div>
+        <div>
+          <div class="section-title">Step 2 — Test-Driven Development</div>
+          <div class="section-desc">Generating, auditing, and validating the test suite before any Python code exists</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-biz">🎓 Stakeholders</span>
+        Step 2 creates the tests <em>before</em> the Python code. This means the Python code is judged against an
+        objective standard derived from the original VB behaviour — not written to pass trivial checks.
+      </p>
+      <p>
+        <span class="tag tag-tech">🔧 Tech Team</span>
+        Two test agents run in parallel using <code>asyncio.gather()</code> — cutting generation time roughly in half.
+        Their outputs are merged and deduped by the Test Auditor before the Dry Run validates syntax.
+      </p>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:var(--step2)">‖</div>
+          <div>
+            <div class="ps-title">Parallel: Functional Tests (2-A) + Golden Master (2-B)</div>
+            <div class="ps-sub">Both agents run simultaneously via asyncio.gather()</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <div class="agent-row">
+            <div class="agent-pill">
+              <div class="ap-label">Agent 2-A</div>
+              <div class="ap-name">Functional Tests</div>
+              <div class="ap-file">functional_tests_agent.py</div>
+            </div>
+            <div class="agent-detail">
+              <p>Writes pytest unit tests from the Markdown spec. Covers every business rule, boundary condition, and edge case. Uses <code>@pytest.mark.parametrize</code> for data-driven cases.</p>
+              <div class="agent-out">
+                <span class="out-badge out-py">test_{module}_functional.py</span>
+              </div>
+            </div>
+          </div>
+          <div class="agent-row">
+            <div class="agent-pill">
+              <div class="ap-label">Agent 2-B</div>
+              <div class="ap-name">Golden Master</div>
+              <div class="ap-file">golden_master_agent.py</div>
+            </div>
+            <div class="agent-detail">
+              <p>Creates characterisation tests from real VB I/O data (or synthetic samples). Asserts exact output match — the strongest guarantee of behavioural equivalence.</p>
+              <div class="agent-out">
+                <span class="out-badge out-py">test_{module}_golden.py</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:#64748b; font-size:11px">AUD</div>
+          <div>
+            <div class="ps-title">Test Auditor</div>
+            <div class="ps-sub">agents/step2/test_auditor.py</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>The Test Auditor reviews both test files, removes trivial assertions (e.g. <code>assert True</code>), eliminates over-mocking, fills coverage gaps identified from the spec, and merges them into a single authoritative test file.</p>
+          <div class="agent-out">
+            <span class="out-badge out-py">test_{module}.py (merged)</span>
+          </div>
+          <h3>What to check in the merged test file</h3>
+          <ul class="checklist">
+            <li><span class="check-icon">🧪</span><div><span class="check-label">At least one test per business rule</span><br><span class="check-note">Cross-reference against the numbered list in the Markdown spec. Every rule should map to ≥ 1 test.</span></div></li>
+            <li><span class="check-icon">🧪</span><div><span class="check-label">Boundary conditions covered</span><br><span class="check-note">Zero values, empty collections, max values, negative inputs — all must appear.</span></div></li>
+            <li><span class="check-icon">🧪</span><div><span class="check-label">No mocking of core logic</span><br><span class="check-note">Only external I/O (file system, DB, HTTP) should be mocked. Business logic must run for real.</span></div></li>
+            <li><span class="check-icon">🧪</span><div><span class="check-label">Golden master tests present</span><br><span class="check-note">Look for <code>@pytest.mark.parametrize</code> blocks with inline expected values matching the VB I/O data.</span></div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:#1e293b; font-size:11px">RUN</div>
+          <div>
+            <div class="ps-title">Dry Run — pytest --collect-only</div>
+            <div class="ps-sub">agents/step2/dry_run_runner.py → Execution MCP</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Runs <code>pytest --collect-only -q</code> on the merged test file. This validates Python syntax and import paths without executing any tests — which would fail because the application code doesn't exist yet.</p>
+          <div class="callout callout-success">
+            <div class="callout-icon">✅</div>
+            <div class="callout-body">
+              <div class="callout-title">Expected outcome</div>
+              <div class="callout-text">All tests are <em>collected</em> (listed) with exit code 0. Syntax errors or bad imports will show here.</div>
+            </div>
+          </div>
+          <div class="callout callout-warn">
+            <div class="callout-icon">⚠️</div>
+            <div class="callout-body">
+              <div class="callout-title">If dry run fails</div>
+              <div class="callout-text">The Hub logs the collection errors but continues to Step 3. The Converter Agent will see the test file has syntax issues and should self-correct the tests on retry. If they persist, check the merged test file manually.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Step 3 ══════════════ -->
+    <section class="section" id="step3">
+      <div class="section-header">
+        <div class="section-icon" style="background:#dcfce7">⚡</div>
+        <div>
+          <div class="section-title">Step 3 — Conversion &amp; Closed-Loop Execution</div>
+          <div class="section-desc">Generating Python code and iterating until all tests pass</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-biz">🎓 Stakeholders</span>
+        Step 3 writes the actual Python code and immediately verifies it against the test suite. If tests fail,
+        the system reads the exact error output and tries again — up to the configured retry limit — before
+        escalating to a human.
+      </p>
+
+      <div class="flow">
+        <div class="flow-node fn-green">Converter<br>Agent</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-dark">mypy<br>--strict</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-dark">pytest<br>full suite</div>
+        <div class="flow-arr" style="color:#16a34a">→ PASS</div>
+        <div class="flow-node fn-green">✓ Done<br>PR Created</div>
+      </div>
+      <div class="flow" style="margin-top: -4px">
+        <div class="flow-node" style="background:transparent;color:transparent;min-width:96px"></div>
+        <div style="color:#94a3b8;font-size:13px;padding:0 8px">↑</div>
+        <div style="color:#e11d48;font-size:12px;font-weight:700">FAIL → error routed back to Converter (max 3 retries)</div>
+      </div>
+
+      <div class="pipeline-step" style="margin-top:22px">
+        <div class="ps-header">
+          <div class="ps-num" style="background:var(--step3)">1</div>
+          <div>
+            <div class="ps-title">Converter Agent</div>
+            <div class="ps-sub">agents/step3/converter_agent.py · Model: claude-sonnet-4-6</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Writes a complete Python module implementing every function in the architecture's <code>public_api</code>. On retry, it receives the full pytest error output and must fix all failing tests.</p>
+          <p>The Converter also queries the <strong>Vector DB</strong> for previously solved VB→Python patterns — reducing redundant re-derivation on similar constructs.</p>
+          <h3>What to check in the generated code</h3>
+          <ul class="checklist">
+            <li><span class="check-icon">🐍</span><div><span class="check-label">All public API functions present</span><br><span class="check-note">Cross-reference with <code>public_api</code> in the architecture JSON.</span></div></li>
+            <li><span class="check-icon">🐍</span><div><span class="check-label">Full type annotations on every function</span><br><span class="check-note">mypy --strict will catch any gaps before pytest runs.</span></div></li>
+            <li><span class="check-icon">🐍</span><div><span class="check-label">No global mutable variables</span><br><span class="check-note">Module-level constants (<code>MAX_DISCOUNT: float = 0.3</code>) are fine; mutable dicts/lists at module level are not.</span></div></li>
+            <li><span class="check-icon">🐍</span><div><span class="check-label">Error handling uses try/except, not GoTo or error codes</span><br><span class="check-note">VB's <code>On Error GoTo Label</code> must become <code>try: ... except SpecificError: ...</code></span></div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:#1e293b; font-size:11px">CHK</div>
+          <div>
+            <div class="ps-title">mypy --strict</div>
+            <div class="ps-sub">agents/step3/mypy_checker.py → Execution MCP</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Runs static type checking on the generated file before executing any tests. Catching type errors here saves iteration cycles — a type error typically causes multiple test failures.</p>
+
+          <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(event,'mypy-pass')">PASS output</button>
+            <button class="tab-btn" onclick="switchTab(event,'mypy-fail')">FAIL output</button>
+          </div>
+          <div id="mypy-pass" class="tab-panel active">
+<pre>Success: no issues found in 1 source file</pre>
+          </div>
+          <div id="mypy-fail" class="tab-panel">
+<pre>invoice_calculator.py:<span class="num">14</span>: <span class="flag">error</span>: Argument <span class="num">1</span> to <span class="str">"apply_discount"</span> has incompatible type <span class="str">"float"</span>; expected <span class="str">"Decimal"</span>  [arg-type]
+invoice_calculator.py:<span class="num">22</span>: <span class="flag">error</span>: Missing return statement  [return]
+Found <span class="num">2</span> errors in <span class="num">1</span> file (checked <span class="num">1</span> source file)</pre>
+          </div>
+          <p style="margin-top:12px">On mypy failure, the error output is prepended to the Converter's next prompt as "mypy errors — fix these before writing the full implementation".</p>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="ps-header">
+          <div class="ps-num" style="background:#1e293b; font-size:11px">RUN</div>
+          <div>
+            <div class="ps-title">pytest — Full Suite</div>
+            <div class="ps-sub">agents/step3/pytest_runner.py → Execution MCP</div>
+          </div>
+        </div>
+        <div class="ps-body">
+          <p>Executes the complete merged test suite. On PASS the module is marked complete and the GitHub PR is created. On FAIL the error output is sent to the Converter for the next retry.</p>
+
+          <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(event,'pytest-pass')">PASS</button>
+            <button class="tab-btn" onclick="switchTab(event,'pytest-fail')">FAIL (routed to Converter)</button>
+          </div>
+          <div id="pytest-pass" class="tab-panel active">
+<pre><span class="kw">PASSED</span>  test_InvoiceCalculator.py::test_calc_subtotal_single_item
+<span class="kw">PASSED</span>  test_InvoiceCalculator.py::test_apply_discount_zero
+<span class="kw">PASSED</span>  test_InvoiceCalculator.py::test_apply_discount_max_boundary
+<span class="kw">PASSED</span>  test_InvoiceCalculator.py::test_golden_master[case0]
+<span class="kw">PASSED</span>  test_InvoiceCalculator.py::test_golden_master[case1]
+
+<span class="kw">============================= 5 passed in 0.12s =============================</span></pre>
+          </div>
+          <div id="pytest-fail" class="tab-panel">
+<pre><span class="flag">FAILED</span>  test_InvoiceCalculator.py::test_apply_discount_out_of_range
+<span class="flag">E</span>       ValueError not raised
+<span class="flag">E</span>       assert ... == 0.3
+<span class="flag">AssertionError</span>: assert 90.0 == 100.0
+
+<span class="flag">============================= 1 failed, 4 passed in 0.14s =============================</span></pre>
+          </div>
+
+          <div class="callout callout-danger" style="margin-top:14px">
+            <div class="callout-icon">🔄</div>
+            <div class="callout-body">
+              <div class="callout-title">Self-correction loop</div>
+              <div class="callout-text">
+                The full pytest output is fed back to the Converter Agent with the instruction "Fix ALL failing tests."
+                This repeats up to <code>MAX_RETRIES</code> times (default 3). If all retries are exhausted,
+                the module is escalated to the CLI operator.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Quality Checklist ══════════════ -->
+    <section class="section" id="checklist">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fef9c3">✅</div>
+        <div>
+          <div class="section-title">Quality Checklist</div>
+          <div class="section-desc">What to review at each stage before signing off</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-tech">🔧 Tech Team</span>
+        Use this checklist when manually reviewing output artifacts or when a module fails the pipeline and you're diagnosing the cause.
+      </p>
+
+      <h2>Step 1 — Analysis &amp; Architecture</h2>
+      <ul class="checklist">
+        <li><span class="check-icon">☐</span><div><span class="check-label">complexity_score is proportionate</span><br><span class="check-note">Simple utilities should score &lt; 0.3. Modules with deeply nested loops, multiple error paths, and COM automation should score &gt; 0.6.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">All public procedures in analysis.control_flow.procedures</span><br><span class="check-note">Open the VB file and count <code>Public Sub</code> / <code>Public Function</code> lines. Counts must match.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Markdown spec matches actual VB behaviour</span><br><span class="check-note">Have a developer familiar with the original system read section 2 (Business Rules). Incorrect rules here cascade into wrong tests and wrong code.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Architecture has zero global mutable state</span><br><span class="check-note">Search the architecture JSON for <code>"global"</code> or <code>"module-level"</code> in design_notes. Any mutable dict/list at module scope is a red flag.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Every COM dependency is an injected abstraction</span><br><span class="check-note">e.g. <code>ADODB.Connection</code> → <code>DatabaseConnection</code> in dependency_injection list.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">No Hungarian notation in Python names</span><br><span class="check-note"><code>strCustomerName</code> → <code>customer_name</code>. <code>nCount</code> → <code>count</code>.</span></div></li>
+      </ul>
+
+      <h2>Step 2 — Test Suite</h2>
+      <ul class="checklist">
+        <li><span class="check-icon">☐</span><div><span class="check-label">One test per business rule minimum</span><br><span class="check-note">Count numbered rules in the spec. Count <code>def test_</code> functions covering each. Gaps must be added manually.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Boundary values tested</span><br><span class="check-note">For <code>ApplyDiscount</code>: 0%, 30% (max), 31% (over), and negative inputs. All four should have test cases.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Exception paths tested</span><br><span class="check-note">Every business rule that says "raises X on Y" must have a <code>with pytest.raises(X)</code> test.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">No <code>assert True</code>, <code>assert 1 == 1</code></span><br><span class="check-note">Grep the test file: <code>grep "assert True\|assert 1 == 1" test_*.py</code> — output must be empty.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Golden master data matches actual VB output</span><br><span class="check-note">If you have real VB I/O logs, spot-check 5 parametrize cases against them.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Dry run passes (all tests collected)</span><br><span class="check-note">Run manually: <code>pytest --collect-only output/{module}/test_{module}.py</code></span></div></li>
+      </ul>
+
+      <h2>Step 3 — Generated Python Code</h2>
+      <ul class="checklist">
+        <li><span class="check-icon">☐</span><div><span class="check-label">mypy --strict exits 0</span><br><span class="check-note">Run: <code>mypy --strict output/{module}/{module}.py</code></span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">All tests pass</span><br><span class="check-note">Run: <code>pytest -v output/{module}/test_{module}.py</code></span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Line count is proportionate</span><br><span class="check-note">Python should be ~60–80% of the VB line count (less ceremony, same logic). Suspiciously short = likely missing logic.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">No <code>Any</code> types in production paths</span><br><span class="check-note">Run: <code>grep "Any" output/{module}/{module}.py</code> — any hits should be justified with a comment.</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Error handling is specific</span><br><span class="check-note">No bare <code>except:</code> clauses. Each exception should name the specific type (e.g. <code>except ValueError</code>).</span></div></li>
+        <li><span class="check-icon">☐</span><div><span class="check-label">Dependencies are injected (not hardcoded)</span><br><span class="check-note">No hardcoded connection strings, file paths, or API endpoints in the module body.</span></div></li>
+      </ul>
+    </section>
+
+    <!-- ══════════════ SECTION: Test Cases ══════════════ -->
+    <section class="section" id="testcases">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fce7f3">📋</div>
+        <div>
+          <div class="section-title">Test Case Review &amp; Manual Test Authoring</div>
+          <div class="section-desc">Understanding generated tests, adding your own, and verifying coverage</div>
+        </div>
+      </div>
+
+      <p>
+        <span class="tag tag-tech">🔧 Tech Team</span>
+        The generated test file lives at <code>output/{module}/test_{module}.py</code>. You can edit it directly.
+        The Converter Agent re-reads it on every retry, so manual improvements are preserved.
+      </p>
+
+      <h2>Anatomy of a Generated Test File</h2>
+<pre><span class="comment"># Generated by VB→Python Migration Orchestrator — Step 2</span>
+<span class="kw">import</span> pytest
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> InvoiceCalculator <span class="kw">import</span> LineItem, Invoice, calc_subtotal, apply_discount, calc_total
+
+<span class="comment"># ── Fixtures ────────────────────────────────────────────────</span>
+<span class="flag">@pytest.fixture</span>
+<span class="kw">def</span> sample_invoice() -> Invoice:
+    <span class="kw">return</span> Invoice(
+        invoice_number=<span class="str">"INV-001"</span>,
+        customer_id=<span class="str">"CUST-42"</span>,
+        items=[LineItem(product_code=<span class="str">"SKU-1"</span>, quantity=<span class="num">2</span>, unit_price=Decimal(<span class="str">"50.00"</span>))],
+        discount_pct=<span class="num">0.1</span>,
+        vat_rate=<span class="num">0.2</span>,
+    )
+
+<span class="comment"># ── Functional Tests ─────────────────────────────────────────</span>
+<span class="kw">def</span> test_calc_subtotal_single_item(sample_invoice):
+    <span class="str">"""Rule 1: subtotal = sum(qty × unit_price) for all line items."""</span>
+    <span class="kw">assert</span> calc_subtotal(sample_invoice) == Decimal(<span class="str">"100.00"</span>)
+
+<span class="flag">@pytest.mark.parametrize</span>(<span class="str">"pct,expected"</span>, [
+    (<span class="num">0.0</span>,  Decimal(<span class="str">"100.00"</span>)),
+    (<span class="num">0.1</span>,  Decimal(<span class="str">"90.00"</span>)),
+    (<span class="num">0.3</span>,  Decimal(<span class="str">"70.00"</span>)),   <span class="comment"># maximum allowed</span>
+])
+<span class="kw">def</span> test_apply_discount_valid(sample_invoice, pct, expected):
+    <span class="kw">assert</span> apply_discount(Decimal(<span class="str">"100.00"</span>), pct) == expected
+
+<span class="kw">def</span> test_apply_discount_exceeds_max_raises():
+    <span class="str">"""Rule 2: discount > 30% must raise ValueError."""</span>
+    <span class="kw">with</span> pytest.raises(ValueError, match=<span class="str">"out of range"</span>):
+        apply_discount(Decimal(<span class="str">"100.00"</span>), <span class="num">0.31</span>)
+
+<span class="comment"># ── Golden Master Tests ──────────────────────────────────────</span>
+<span class="flag">@pytest.mark.parametrize</span>(<span class="str">"items,discount,vat,expected_total"</span>, [
+    ([(<span class="num">2</span>, Decimal(<span class="str">"50.00"</span>))], <span class="num">0.1</span>, <span class="num">0.2</span>, Decimal(<span class="str">"108.00"</span>)),
+    ([(<span class="num">1</span>, Decimal(<span class="str">"100.00"</span>))], <span class="num">0.0</span>, <span class="num">0.2</span>, Decimal(<span class="str">"120.00"</span>)),
+])
+<span class="kw">def</span> test_golden_master_calc_total(items, discount, vat, expected_total):
+    <span class="str">"""Exact match against recorded VB system output."""</span>
+    inv = Invoice(invoice_number=<span class="str">"T"</span>, customer_id=<span class="str">"T"</span>,
+                  items=[LineItem(product_code=<span class="str">"X"</span>, quantity=q, unit_price=p) <span class="kw">for</span> q, p <span class="kw">in</span> items],
+                  discount_pct=discount, vat_rate=vat)
+    <span class="kw">assert</span> calc_total(inv) == expected_total</pre>
+
+      <h2>Adding Your Own Tests</h2>
+      <p>Add tests directly to <code>output/{module}/test_{module}.py</code>. Follow these conventions to keep them compatible with the pipeline:</p>
+      <ul class="checklist">
+        <li><span class="check-icon">✏️</span><div><span class="check-label">Use <code>pytest.mark.parametrize</code> for multiple input variants</span><br><span class="check-note">Avoids copy-paste test functions that all look the same.</span></div></li>
+        <li><span class="check-icon">✏️</span><div><span class="check-label">Write a one-line docstring referencing the spec rule number</span><br><span class="check-note">e.g. <code>"""Rule 4: VAT is applied after discount."""</code></span></div></li>
+        <li><span class="check-icon">✏️</span><div><span class="check-label">Use <code>pytest.raises(ExceptionType, match="pattern")</code></span><br><span class="check-note">The <code>match</code> pattern ensures the right exception message is checked, not just the type.</span></div></li>
+        <li><span class="check-icon">✏️</span><div><span class="check-label">Use <code>Decimal</code> for all monetary values</span><br><span class="check-note">Floating-point rounding errors will cause flaky golden master tests. Always use <code>Decimal("0.10")</code> not <code>0.10</code>.</span></div></li>
+      </ul>
+
+      <h2>Checking Test Coverage</h2>
+<pre><span class="prompt"># Install coverage plugin (once)</span>
+<span class="cmd">pip</span> install pytest-cov
+
+<span class="prompt"># Run with coverage report</span>
+<span class="cmd">pytest</span> --cov=output/InvoiceCalculator \
+       --cov-report=term-missing \
+       output/InvoiceCalculator/test_InvoiceCalculator.py</pre>
+
+      <p>Aim for ≥ 90% line coverage. Lines marked as <code>MISS</code> in the report indicate logic paths untested — add parametrize cases for them.</p>
+    </section>
+
+    <!-- ══════════════ SECTION: pytest ══════════════ -->
+    <section class="section" id="pytest">
+      <div class="section-header">
+        <div class="section-icon" style="background:#dcfce7">▶️</div>
+        <div>
+          <div class="section-title">Running pytest Manually</div>
+          <div class="section-desc">Commands, flags, and interpreting output</div>
+        </div>
+      </div>
+
+      <span class="tag tag-tech">🔧 Tech Team</span>
+
+      <h2>Common Commands</h2>
+      <table>
+        <thead><tr><th>Goal</th><th>Command</th></tr></thead>
+        <tbody>
+          <tr><td>Run all tests for one module</td><td><code>pytest output/InvoiceCalculator/test_InvoiceCalculator.py</code></td></tr>
+          <tr><td>Verbose output (show each test name)</td><td><code>pytest -v output/InvoiceCalculator/test_InvoiceCalculator.py</code></td></tr>
+          <tr><td>Stop on first failure</td><td><code>pytest -x output/InvoiceCalculator/</code></td></tr>
+          <tr><td>Run only golden master tests</td><td><code>pytest -k "golden_master" output/InvoiceCalculator/</code></td></tr>
+          <tr><td>Run only functional tests</td><td><code>pytest -k "not golden_master" output/InvoiceCalculator/</code></td></tr>
+          <tr><td>Validate syntax (no execution)</td><td><code>pytest --collect-only output/InvoiceCalculator/</code></td></tr>
+          <tr><td>With coverage HTML report</td><td><code>pytest --cov=output/InvoiceCalculator --cov-report=html output/InvoiceCalculator/</code></td></tr>
+          <tr><td>Run all migrated modules</td><td><code>pytest output/ -v --tb=short</code></td></tr>
+          <tr><td>Run mypy type check</td><td><code>mypy --strict output/InvoiceCalculator/InvoiceCalculator.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Reading pytest Output</h2>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab(event,'pt-all-pass')">All pass</button>
+        <button class="tab-btn" onclick="switchTab(event,'pt-one-fail')">One failure</button>
+        <button class="tab-btn" onclick="switchTab(event,'pt-import-err')">Import error</button>
+      </div>
+      <div id="pt-all-pass" class="tab-panel active">
+<pre><span class="comment">========================= test session starts =========================</span>
+platform linux -- Python 3.11.0, pytest-8.0.0
+
+collected <span class="num">12</span> items
+
+test_InvoiceCalculator.py <span class="kw">............</span>                          [<span class="num">100%</span>]
+
+<span class="kw">========================== 12 passed in 0.23s ==========================</span></pre>
+        <p>All tests passed. The module is complete. The Hub Agent creates the GitHub PR and marks the module COMPLETED.</p>
+      </div>
+      <div id="pt-one-fail" class="tab-panel">
+<pre><span class="comment">========================= test session starts =========================</span>
+
+<span class="flag">FAILED</span> test_InvoiceCalculator.py::test_apply_discount_exceeds_max_raises
+
+<span class="flag">______ test_apply_discount_exceeds_max_raises ______</span>
+
+    def test_apply_discount_exceeds_max_raises():
+        with pytest.raises(ValueError, match=<span class="str">"out of range"</span>):
+<span class="flag">&gt;</span>           apply_discount(Decimal(<span class="str">"100.00"</span>), 0.31)
+<span class="flag">E</span>           Failed: DID NOT RAISE &lt;class 'ValueError'&gt;
+
+<span class="kw">====================== 1 failed, 11 passed in 0.21s ====================</span></pre>
+        <p><strong>Diagnosis:</strong> The Converter did not implement the validation guard for discount &gt; 30%. The self-correction loop feeds this output back to Claude with "Fix ALL failing tests."</p>
+      </div>
+      <div id="pt-import-err" class="tab-panel">
+<pre><span class="flag">ERROR</span> collecting test_InvoiceCalculator.py
+
+ImportError while importing test file:
+    <span class="flag">ModuleNotFoundError</span>: No module named <span class="str">'InvoiceCalculator'</span>
+
+<span class="comment">========================= short test summary info ==========================</span>
+<span class="flag">ERROR</span> test_InvoiceCalculator.py - ModuleNotFoundError: No module named 'InvoiceCalculator'</pre>
+        <p><strong>Fix:</strong> The test is trying to import from the module before the Python file has been generated (or it's in a different directory). Run from <code>output/InvoiceCalculator/</code> or add the output path to <code>PYTHONPATH</code>:
+        <br><code>PYTHONPATH=output/InvoiceCalculator pytest output/InvoiceCalculator/test_InvoiceCalculator.py</code></p>
+      </div>
+
+      <h2>Failure Patterns &amp; Fixes</h2>
+      <table>
+        <thead><tr><th>Failure pattern</th><th>Likely cause</th><th>Resolution</th></tr></thead>
+        <tbody>
+          <tr><td><code>AssertionError: assert X == Y</code> on a golden master test</td><td>Rounding difference (float vs Decimal) or wrong formula</td><td>Check that the Python uses <code>Decimal</code> for money; verify the formula against the VB spec</td></tr>
+          <tr><td><code>DID NOT RAISE ValueError</code></td><td>Converter omitted the validation guard</td><td>The retry loop will fix this; if it persists after 3 retries, add the guard manually</td></tr>
+          <tr><td><code>TypeError: argument after ** must be a mapping</code></td><td>Dataclass field mismatch with test fixture</td><td>Update the fixture or regenerate the architecture</td></tr>
+          <tr><td>All tests pass but mypy fails</td><td>Missing type annotations or incorrect return type</td><td>Run <code>mypy --strict</code>, add annotations to flagged functions</td></tr>
+          <tr><td>50%+ test failures on first attempt</td><td>Architecture mismatch — module name in tests doesn't match generated file name</td><td>Ensure <code>module_name</code> in architecture.json matches the Python file name</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ SECTION: MCP ══════════════ -->
+    <section class="section" id="mcp">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fce7f3">🔌</div>
+        <div>
+          <div class="section-title">MCP Servers</div>
+          <div class="section-desc">Infrastructure configuration for file I/O, execution, memory, and GitHub</div>
+        </div>
+      </div>
+
+      <span class="tag tag-tech">🔧 Tech Team</span>
+
+      <table>
+        <thead>
+          <tr><th>Server</th><th>File</th><th>Status</th><th>Configuration</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>📁 <strong>File System</strong></td>
+            <td><code>mcp/filesystem_server.py</code></td>
+            <td><span style="color:#16a34a;font-weight:700">✓ Always active</span></td>
+            <td>Configured with <code>output_dir</code> from CLI. No extra setup needed.</td>
+          </tr>
+          <tr>
+            <td>💻 <strong>Host Execution</strong></td>
+            <td><code>mcp/execution_server.py</code></td>
+            <td><span style="color:#16a34a;font-weight:700">✓ Always active</span></td>
+            <td>Requires <code>pytest</code> and <code>mypy</code> in the active virtual environment.</td>
+          </tr>
+          <tr>
+            <td>🗄️ <strong>Vector DB (Qdrant)</strong></td>
+            <td><code>mcp/vectordb_server.py</code></td>
+            <td><span style="color:#b45309;font-weight:700">Optional</span></td>
+            <td>Set <code>QDRANT_URL</code> in <code>.env</code>. Without it, translation memory is disabled but pipeline continues.</td>
+          </tr>
+          <tr>
+            <td>🐙 <strong>GitHub</strong></td>
+            <td><code>mcp/github_server.py</code></td>
+            <td><span style="color:#b45309;font-weight:700">Optional</span></td>
+            <td>Set <code>GITHUB_TOKEN</code> + <code>GITHUB_REPO</code>. Without them, PR creation is skipped silently.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Starting Qdrant Locally (Optional)</h2>
+<pre><span class="prompt"># Using Docker</span>
+<span class="cmd">docker</span> run -p <span class="num">6333</span>:<span class="num">6333</span> qdrant/qdrant
+
+<span class="prompt"># Then set in .env</span>
+<span class="flag">QDRANT_URL</span>=http://localhost:<span class="num">6333</span></pre>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">💡</div>
+        <div class="callout-body">
+          <div class="callout-title">In-memory Qdrant (no Docker)</div>
+          <div class="callout-text">
+            If Qdrant is unavailable, <code>VectorDBServer</code> is initialised with <code>use_memory=True</code>
+            automatically. Translation memory works within a single run but is lost on exit. Set up a persistent
+            Qdrant instance when migrating multiple modules across multiple sessions.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Output ══════════════ -->
+    <section class="section" id="output">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0e7ff">📦</div>
+        <div>
+          <div class="section-title">Output Artifacts</div>
+          <div class="section-desc">What gets generated, where it lives, and what to do with it</div>
+        </div>
+      </div>
+
+      <p>Every migrated module produces its own subdirectory under <code>output/</code>:</p>
+
+      <div class="filetree">
+<span class="ft-dir">output/</span>
+└── <span class="ft-dir">InvoiceCalculator/</span>
+    ├── <span class="ft-gen">InvoiceCalculator.py</span>          <span class="ft-note">← ✅ final Python module</span>
+    ├── <span class="ft-gen">test_InvoiceCalculator.py</span>     <span class="ft-note">← ✅ merged test suite</span>
+    ├── <span class="ft-file">InvoiceCalculator_spec.md</span>     <span class="ft-note">← 📋 Markdown specification</span>
+    └── <span class="ft-file">InvoiceCalculator_architecture.json</span>  <span class="ft-note">← 🏛 architecture blueprint</span>
+
+<span class="ft-dir">output/</span>
+└── <span class="ft-file">migration_state.json</span>           <span class="ft-note">← 🗂 global migration log (all modules)</span>
+      </div>
+
+      <h2>Artifact Descriptions</h2>
+      <div class="artifact-grid">
+        <div class="artifact-card">
+          <div class="artifact-path">{module}.py</div>
+          <div class="artifact-desc">The migrated Python module. Fully type-annotated, passes all tests. This is the deliverable — copy it to your target repository.</div>
+        </div>
+        <div class="artifact-card">
+          <div class="artifact-path">test_{module}.py</div>
+          <div class="artifact-desc">Merged functional + golden master test suite. Keep this in the target repo alongside the module. These are your regression tests going forward.</div>
+        </div>
+        <div class="artifact-card">
+          <div class="artifact-path">{module}_spec.md</div>
+          <div class="artifact-desc">Human-readable functional specification derived from the VB source. Useful for code review and as permanent documentation of the module's business rules.</div>
+        </div>
+        <div class="artifact-card">
+          <div class="artifact-path">{module}_architecture.json</div>
+          <div class="artifact-desc">Machine-readable architecture blueprint (dataclasses, public API signatures, module boundaries). Used internally by Steps 2 and 3; useful for debugging unexpected designs.</div>
+        </div>
+      </div>
+
+      <h2>migration_state.json</h2>
+      <p>The Hub Agent persists its global state after every status change. If a run is interrupted, the state file shows exactly which modules completed and which are pending.</p>
+<pre>{
+  <span class="str">"modules"</span>: {
+    <span class="str">"InvoiceCalculator"</span>: {
+      <span class="str">"status"</span>: <span class="str">"completed"</span>,
+      <span class="str">"retry_count"</span>: <span class="num">1</span>,
+      <span class="str">"artifacts"</span>: {
+        <span class="str">"spec"</span>:         <span class="str">"output/InvoiceCalculator/InvoiceCalculator_spec.md"</span>,
+        <span class="str">"architecture"</span>: <span class="str">"output/InvoiceCalculator/InvoiceCalculator_architecture.json"</span>,
+        <span class="str">"test_suite"</span>:   <span class="str">"output/InvoiceCalculator/test_InvoiceCalculator.py"</span>,
+        <span class="str">"python_source"</span>:<span class="str">"output/InvoiceCalculator/InvoiceCalculator.py"</span>
+      }
+    }
+  },
+  <span class="str">"completed_modules"</span>: <span class="num">1</span>,
+  <span class="str">"failed_modules"</span>: <span class="num">0</span>
+}</pre>
+    </section>
+
+    <!-- ══════════════ SECTION: Troubleshooting ══════════════ -->
+    <section class="section" id="troubleshoot">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fef3c7">🔧</div>
+        <div>
+          <div class="section-title">Troubleshooting</div>
+          <div class="section-desc">Common problems and how to resolve them</div>
+        </div>
+      </div>
+
+      <span class="tag tag-tech">🔧 Tech Team</span>
+
+      <table>
+        <thead><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>anthropic.AuthenticationError</code></td>
+            <td><code>ANTHROPIC_API_KEY</code> missing or invalid</td>
+            <td>Check <code>.env</code> — key must start with <code>sk-ant-</code></td>
+          </tr>
+          <tr>
+            <td>Human gate triggers on every module</td>
+            <td>Threshold too low</td>
+            <td>Raise with <code>--threshold 0.9</code> or set <code>COMPLEXITY_THRESHOLD=0.9</code> in <code>.env</code></td>
+          </tr>
+          <tr>
+            <td>Step 3 exhausts all retries</td>
+            <td>Architecture/test mismatch; or very unusual VB idiom</td>
+            <td>1. Check generated Python manually. 2. Add a similar solved pattern to Qdrant. 3. Edit the architecture JSON to simplify the API.</td>
+          </tr>
+          <tr>
+            <td>mypy errors persist after retries</td>
+            <td>Incorrect return type in architecture <code>public_api</code></td>
+            <td>Edit <code>{module}_architecture.json</code>, fix the signature, delete the generated <code>.py</code>, re-run Step 3 only by calling <code>ConverterAgent</code> directly.</td>
+          </tr>
+          <tr>
+            <td>Golden master tests fail with wrong values</td>
+            <td>The I/O samples in <code>io_samples/</code> are incorrect or the VB logic was already buggy</td>
+            <td>Verify samples against the actual VB system output. Update the JSON, delete the test file, and re-run Step 2.</td>
+          </tr>
+          <tr>
+            <td>No VB files found</td>
+            <td>Wrong source directory or unexpected file extensions</td>
+            <td>Check <code>FileSystemServer.find_vb_files()</code> — add your extension to the <code>exts</code> set if needed</td>
+          </tr>
+          <tr>
+            <td><code>ModuleNotFoundError</code> when running pytest</td>
+            <td>Test imports module by name but Python can't find it</td>
+            <td>Run: <code>PYTHONPATH=output/{module} pytest output/{module}/test_{module}.py</code></td>
+          </tr>
+          <tr>
+            <td>Qdrant connection refused</td>
+            <td>Qdrant not running</td>
+            <td>Start Docker: <code>docker run -p 6333:6333 qdrant/qdrant</code> — or unset <code>QDRANT_URL</code> to use in-memory mode</td>
+          </tr>
+          <tr>
+            <td>GitHub 422 on PR creation</td>
+            <td>Token scope missing or repo name wrong</td>
+            <td>Token needs <code>repo</code> scope. <code>GITHUB_REPO</code> must be <code>owner/repo</code> (not a URL)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Re-running a Failed Module</h2>
+      <p>The current version processes each module from scratch. To re-run a specific module without repeating the whole batch:</p>
+<pre><span class="prompt"># Point source_dir at a single-file subdirectory</span>
+<span class="cmd">mkdir</span> tmp_retry && <span class="cmd">cp</span> your_vb_project/InvoiceCalculator.bas tmp_retry/
+<span class="cmd">python</span> main.py tmp_retry/ --out output/ --retries <span class="num">5</span>
+<span class="cmd">rm</span> -rf tmp_retry</pre>
+
+      <h2>Debug Logging</h2>
+      <p>Set <code>LOG_LEVEL=DEBUG</code> in <code>.env</code> to see every Claude API call, token usage, and tool result:</p>
+<pre><span class="cmd">LOG_LEVEL=DEBUG python</span> main.py sample_vb/ 2>&amp;1 | <span class="cmd">tee</span> migration.log</pre>
+
+      <div class="callout callout-success">
+        <div class="callout-icon">🎉</div>
+        <div class="callout-body">
+          <div class="callout-title">A successful migration end-to-end</div>
+          <div class="callout-text">
+            When everything works, you will see: Step 1 PASS → Step 2 PASS (12 tests collected) → Step 3 mypy PASS → pytest 12 passed → ✓ Done → PR link printed. The module is in <code>output/{name}/{name}.py</code> ready for review.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /.main -->
+</div><!-- /.layout -->
+
+<script>
+  /* Tab switching */
+  function switchTab(e, panelId) {
+    const container = e.target.closest('.ps-body') || e.target.closest('.section');
+    const allBtns = e.target.parentElement.querySelectorAll('.tab-btn');
+    const allPanels = e.target.parentElement.nextElementSibling
+      ? [...e.target.parentElement.parentElement.querySelectorAll('.tab-panel')]
+      : [];
+
+    allBtns.forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      if (p.id === panelId) p.classList.add('active');
+      else if ([...allBtns].some(b => b.getAttribute('onclick')?.includes(p.id))) {
+        p.classList.remove('active');
+      }
+    });
+  }
+
+  /* Sidebar active link tracking */
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks  = document.querySelectorAll('.nav-link');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
