@@ -43,6 +43,26 @@ class ASTChecker:
         for name in sorted(missing):
             issues.append(f"Method '{name}' found in source but not captured in analysis.")
 
+        # Collect class names found in source
+        src_classes = {m.group(2).lower() for m in _CLASS_RE.finditer(source)}
+        captured_classes = {
+            ds["name"].lower()
+            for ds in analysis.data_structures
+            if "class" in ds.get("type", "").lower()
+        }
+        for name in sorted(src_classes - captured_classes):
+            issues.append(f"Class '{name}' found in source but not captured in analysis.")
+
+        # Collect interface names found in source
+        src_interfaces = {m.group(2).lower() for m in _INTERFACE_RE.finditer(source)}
+        captured_interfaces = {
+            ds["name"].lower()
+            for ds in analysis.data_structures
+            if "interface" in ds.get("type", "").lower()
+        }
+        for name in sorted(src_interfaces - captured_interfaces):
+            issues.append(f"Interface '{name}' found in source but not captured in analysis.")
+
         # Flag Java idioms that need special migration attention
         if _NULL_RETURN_RE.search(source):
             warnings.append("Source contains 'return null' — verify Optional[T] handling in architecture.")
@@ -56,6 +76,7 @@ class ASTChecker:
         passed = len(issues) == 0
         logger.info(
             f"[{analysis.module_name}] AST check: {'PASS' if passed else 'FAIL'} "
-            f"({len(issues)} issues, {len(warnings)} warnings)"
+            f"({len(issues)} issues, {len(warnings)} warnings) "
+            f"[methods={len(src_methods)}, classes={len(src_classes)}, interfaces={len(src_interfaces)}]"
         )
         return ValidationResult(passed=passed, issues=issues, warnings=warnings)
