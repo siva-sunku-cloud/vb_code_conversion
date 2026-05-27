@@ -4,6 +4,7 @@ Java → Python Migration Orchestrator
 CLI entry point.
 """
 import asyncio
+import os
 from pathlib import Path
 
 import typer
@@ -29,6 +30,7 @@ def migrate(
     source_dir: Path = typer.Argument(..., help="Directory containing .java source files"),
     output_dir: Path = typer.Option(_DEFAULT_OUTPUT, "--out", "-o", help="Directory for generated Python output"),
     max_retries: int = typer.Option(3, "--retries", "-r", help="Max self-correction cycles in Step 3"),
+    log_level: str = typer.Option("", "--log-level", "-l", help="Log level: DEBUG | INFO | WARNING | ERROR (default: DEBUG)"),
 ):
     """
     Run the full Java → Python migration pipeline on SOURCE_DIR.
@@ -41,6 +43,9 @@ def migrate(
 
     Results are written to OUTPUT_DIR/<module_name>/. Defaults to ~/output.
     """
+    if log_level:
+        os.environ["LOG_LEVEL"] = log_level.upper()
+
     setup_logging()
 
     console.print(Panel.fit(

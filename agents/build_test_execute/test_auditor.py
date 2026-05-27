@@ -20,6 +20,13 @@ class TestAuditor(BaseAgent):
         output_path: str,
     ) -> TestSuite:
         self.logger.info(f"Auditing test suites for: {functional.module_name}")
+        self.logger.debug(
+            f"[{functional.module_name}] functional_tests={functional.test_count}"
+            f"  golden_tests={golden.test_count}"
+            f"  total_input={functional.test_count + golden.test_count}"
+            f"  functional_chars={len(functional.test_code)}"
+            f"  golden_chars={len(golden.test_code)}"
+        )
 
         response = self._call_llm(
             system=TEST_AUDITOR_SYSTEM,
@@ -46,6 +53,11 @@ class TestAuditor(BaseAgent):
         self.logger.info(
             f"[{functional.module_name}] audited test suite: "
             f"{functional.test_count + golden.test_count} → {test_count} tests"
+        )
+        self.logger.debug(
+            f"[{functional.module_name}] merged_lines={len(merged_code.splitlines())}"
+            f"  merged_chars={len(merged_code)}"
+            f"  output_path={output_path}"
         )
 
         return TestSuite(

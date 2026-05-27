@@ -45,6 +45,14 @@ class Config:
         "HUB_MODEL", _DEFAULTS.get(os.getenv("LLM_PROVIDER", "anthropic").lower(), _DEFAULTS["anthropic"])["hub"]
     )
 
+    # ── Folders ───────────────────────────────────────────────────────────────
+    DATA_FOLDER: str = os.path.expanduser(os.getenv("DATA_FOLDER", "~/data_code_conversion"))
+    LOG_FOLDER:  str = os.path.expanduser(os.getenv("LOG_FOLDER",  "~/data_code_conversion/logs"))
+
+    # ── Logging ───────────────────────────────────────────────────────────────
+    # Set LOG_LEVEL to DEBUG | INFO | WARNING | ERROR | CRITICAL
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
+
     # ── Pipeline ──────────────────────────────────────────────────────────────
     MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
 

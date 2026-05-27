@@ -4,8 +4,6 @@ Step 1-A · Understand Agent
 Extracts business logic, data structures, external API calls, and control
 flow from a Java source file. Returns a structured AnalysisResult.
 """
-from pathlib import Path
-
 from agents.base_agent import BaseAgent
 from models.artifacts import AnalysisResult
 from utils.prompts import UNDERSTAND_SYSTEM
@@ -17,6 +15,11 @@ class UnderstandAgent(BaseAgent):
 
     def run(self, source_code: str, module_name: str, source_file_path: str) -> AnalysisResult:
         self.logger.info(f"Analysing module: {module_name}")
+        self.logger.debug(
+            f"[{module_name}] source_file={source_file_path}"
+            f"  source_lines={len(source_code.splitlines())}"
+            f"  source_chars={len(source_code)}"
+        )
 
         response = self._call_llm(
             system=UNDERSTAND_SYSTEM,
@@ -38,7 +41,20 @@ class UnderstandAgent(BaseAgent):
 
         result = AnalysisResult(**data)
         self.logger.info(
-            f"[{module_name}] complexity={result.complexity_score:.2f}  "
-            f"methods={len(result.control_flow.get('methods', []))}"
+            f"[{module_name}] complexity={result.complexity_score:.2f}"
+            f"  methods={len(result.control_flow.get('methods', []))}"
         )
+        self.logger.debug(
+            f"[{module_name}] business_logic_items={len(result.business_logic)}"
+            f"  data_structures={len(result.data_structures)}"
+            f"  external_api_calls={len(result.external_api_calls)}"
+            f"  loops={len(result.control_flow.get('loops', []))}"
+            f"  exception_handlers={len(result.control_flow.get('exception_handlers', []))}"
+        )
+        self.logger.debug(f"[{module_name}] summary: {result.raw_summary}")
+        if result.data_structures:
+            for ds in result.data_structures:
+                self.logger.debug(
+                    f"[{module_name}]   data_structure: name={ds.get('name')}  type={ds.get('type')}  fields={len(ds.get('fields', []))}"
+                )
         return result

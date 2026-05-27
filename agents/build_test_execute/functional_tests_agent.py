@@ -20,6 +20,12 @@ class FunctionalTestsAgent(BaseAgent):
         output_path: str,
     ) -> TestSuite:
         self.logger.info(f"Generating functional tests for: {spec.module_name}")
+        self.logger.debug(
+            f"[{spec.module_name}] output_path={output_path}"
+            f"  spec_chars={len(spec.content)}"
+            f"  design_dataclasses={len(design.dataclasses)}"
+            f"  design_public_api={len(design.public_api)}"
+        )
 
         response = self._call_llm(
             system=FUNCTIONAL_TESTS_SYSTEM,
@@ -45,6 +51,10 @@ class FunctionalTestsAgent(BaseAgent):
 
         test_count = test_code.count("def test_")
         self.logger.info(f"[{spec.module_name}] {test_count} functional tests generated")
+        self.logger.debug(
+            f"[{spec.module_name}] test_code_lines={len(test_code.splitlines())}"
+            f"  test_code_chars={len(test_code)}"
+        )
 
         return TestSuite(
             module_name=spec.module_name,

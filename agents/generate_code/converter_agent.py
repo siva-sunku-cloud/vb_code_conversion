@@ -19,6 +19,7 @@ class ConverterAgent(BaseAgent):
     def __init__(self, vectordb: Optional[VectorDBClient] = None) -> None:
         super().__init__("ConverterAgent")
         self.vectordb = vectordb
+        self.logger.debug(f"vectordb={'enabled' if vectordb else 'disabled'}")
 
     async def run(
         self,
@@ -30,6 +31,16 @@ class ConverterAgent(BaseAgent):
     ) -> ConversionResult:
         attempt = f"attempt {retry_count + 1}" if retry_count > 0 else "initial"
         self.logger.info(f"Converting {design.module_name} ({attempt})")
+        self.logger.debug(
+            f"[{design.module_name}] output_path={output_path}"
+            f"  retry_count={retry_count}"
+            f"  has_previous_error={previous_error is not None}"
+            f"  test_count={test_suite.test_count}"
+        )
+        if previous_error:
+            self.logger.debug(
+                f"[{design.module_name}] previous_error preview: {previous_error[:300]}"
+            )
 
         patterns_section = await self._fetch_patterns(design.module_name)
 
@@ -64,7 +75,12 @@ class ConverterAgent(BaseAgent):
         if python_code.startswith("```"):
             python_code = python_code.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-        self.logger.info(f"[{design.module_name}] generated {len(python_code.splitlines())} lines")
+        lines = python_code.splitlines()
+        self.logger.info(f"[{design.module_name}] generated {len(lines)} lines")
+        self.logger.debug(
+            f"[{design.module_name}] python_code_chars={len(python_code)}"
+            f"  output_path={output_path}"
+        )
 
         return ConversionResult(
             module_name=design.module_name,
@@ -75,10 +91,13 @@ class ConverterAgent(BaseAgent):
 
     async def _fetch_patterns(self, module_name: str) -> str:
         if not self.vectordb:
+            self.logger.debug(f"[{module_name}] translation memory skipped (no vectordb)")
             return ""
         patterns = await self.vectordb.search_patterns(module_name)
         if not patterns:
+            self.logger.debug(f"[{module_name}] no translation memory patterns found")
             return ""
+        self.logger.debug(f"[{module_name}] {len(patterns)} translation memory patterns loaded")
         lines = ["\n\n## Translation Memory — Similar Patterns"]
         for i, p in enumerate(patterns, 1):
             lines.append(

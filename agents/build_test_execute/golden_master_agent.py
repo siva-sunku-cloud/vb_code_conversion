@@ -21,6 +21,10 @@ class GoldenMasterAgent(BaseAgent):
         io_samples: list[dict] | None = None,
     ) -> TestSuite:
         self.logger.info(f"Generating golden-master tests for: {spec.module_name}")
+        self.logger.debug(
+            f"[{spec.module_name}] output_path={output_path}"
+            f"  io_samples={'synthetic (none provided)' if not io_samples else len(io_samples)}"
+        )
 
         samples_section = ""
         if io_samples:
@@ -29,11 +33,13 @@ class GoldenMasterAgent(BaseAgent):
                 "\n\n## Historical I/O Samples (JSON)\n"
                 f"```json\n{json.dumps(io_samples, indent=2)}\n```"
             )
+            self.logger.debug(f"[{spec.module_name}] using {len(io_samples)} historical I/O samples")
         else:
             samples_section = (
                 "\n\n*No historical I/O data provided — generate representative "
                 "synthetic samples based on the specification.*"
             )
+            self.logger.debug(f"[{spec.module_name}] no I/O samples — LLM will generate synthetic ones")
 
         response = self._call_llm(
             system=GOLDEN_MASTER_SYSTEM,
@@ -57,6 +63,10 @@ class GoldenMasterAgent(BaseAgent):
 
         test_count = test_code.count("def test_")
         self.logger.info(f"[{spec.module_name}] {test_count} golden-master tests generated")
+        self.logger.debug(
+            f"[{spec.module_name}] test_code_lines={len(test_code.splitlines())}"
+            f"  test_code_chars={len(test_code)}"
+        )
 
         return TestSuite(
             module_name=spec.module_name,

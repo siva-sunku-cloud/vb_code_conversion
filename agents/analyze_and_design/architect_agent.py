@@ -20,6 +20,11 @@ class ArchitectAgent(BaseAgent):
         output_path: str,
     ) -> ArchitectureDesign:
         self.logger.info(f"Designing architecture for: {analysis.module_name}")
+        self.logger.debug(
+            f"[{analysis.module_name}] output_path={output_path}"
+            f"  spec_chars={len(spec.content)}"
+            f"  complexity={analysis.complexity_score:.2f}"
+        )
 
         response = self._call_llm(
             system=ARCHITECT_SYSTEM,
@@ -48,4 +53,21 @@ class ArchitectAgent(BaseAgent):
             f"dataclasses={len(design.dataclasses)}  "
             f"public_api={len(design.public_api)}"
         )
+        self.logger.debug(
+            f"[{analysis.module_name}] type_hints={len(design.type_hints)}"
+            f"  module_boundaries={len(design.module_boundaries)}"
+            f"  dependency_injection={len(design.dependency_injection)}"
+        )
+        if design.dataclasses:
+            for dc in design.dataclasses:
+                self.logger.debug(
+                    f"[{analysis.module_name}]   dataclass: name={dc.get('name')}  fields={len(dc.get('fields', []))}"
+                )
+        if design.public_api:
+            for api in design.public_api:
+                self.logger.debug(
+                    f"[{analysis.module_name}]   public_api: {api.get('name', api)}"
+                )
+        if design.design_notes:
+            self.logger.debug(f"[{analysis.module_name}] design_notes: {design.design_notes[:200]}")
         return design

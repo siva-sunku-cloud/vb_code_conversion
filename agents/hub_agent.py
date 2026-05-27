@@ -91,30 +91,40 @@ class HubAgent:
         # Start all four MCP server processes and keep them alive for the
         # entire migration run.
         async with AsyncExitStack() as stack:
+            logger.debug(f"Starting MCP infrastructure services for output_dir={request.output_dir}")
             self.fs = await stack.enter_async_context(
                 FilesystemClient(request.output_dir)
             )
+            logger.debug("FilesystemClient started")
             self.executor = await stack.enter_async_context(
                 ExecutionClient(request.output_dir)
             )
+            logger.debug("ExecutionClient started")
             self.vectordb = await stack.enter_async_context(
                 VectorDBClient(use_memory=True)
             )
+            logger.debug("VectorDBClient started (in-memory)")
             self.github = await stack.enter_async_context(GitHubClient())
+            logger.debug("GitHubClient started")
 
             # Initialise migration state
             global_state = GlobalMigrationState(request=request)
             self.manager = MigrationManager(global_state)
             self.manager.set_state_file(request.output_dir / "migration_state.json")
             self.manager.log("Migration pipeline initialised")
+            logger.debug(f"State file: {request.output_dir / 'migration_state.json'}")
 
             # Discover VB files via the filesystem MCP server
             java_files = await self.fs.find_java_files(request.source_dir)
             if not java_files:
                 console.print("[yellow]No Java files found. Exiting.[/yellow]")
+                logger.warning(f"No Java files found in source_dir={request.source_dir}")
                 return
 
             console.print(f"\nFound [bold]{len(java_files)}[/bold] Java file(s) to migrate.\n")
+            logger.debug(f"Discovered {len(java_files)} Java files:")
+            for f in java_files:
+                logger.debug(f"  {f}")
 
             for f in java_files:
                 name = f.stem
@@ -123,6 +133,7 @@ class HubAgent:
                     name=name, source_file_path=str(f)
                 )
 
+            logger.debug(f"Registered {len(self.manager.state.modules)} modules for migration")
             for module_state in list(self.manager.state.modules.values()):
                 await self._process_module(module_state, request)
 
@@ -147,14 +158,20 @@ class HubAgent:
         console.rule(f"[bold cyan]Module: {name}[/bold cyan]")
 
         try:
+            logger.debug(f"[{name}] Reading source file: {module_state.source_file_path}")
             source_code = await self.fs.read_text(module_state.source_file_path)
+            logger.debug(f"[{name}] Source loaded — {len(source_code.splitlines())} lines  {len(source_code)} chars")
 
             analysis, spec, design = await self._analyze_and_design(name, source_code, module_state.source_file_path, request)
+            logger.debug(f"[{name}] Step 1 complete — proceeding to Step 2")
             test_suite = await self._build_test_execute(name, spec, design, request)
+            logger.debug(f"[{name}] Step 2 complete — proceeding to Step 3")
             await self._generate_code(name, design, test_suite, request)
+            logger.debug(f"[{name}] Step 3 complete")
 
         except HumanRejectionError:
             self.manager.update_module_status(name, ModuleStatus.FAILED, "Rejected at human gate")
+            logger.warning(f"[{name}] Rejected at human gate")
             console.print(f"[red]Module {name} rejected by human reviewer.[/red]")
         except Exception as exc:
             logger.exception(f"Unhandled error for module {name}")
@@ -173,13 +190,16 @@ class HubAgent:
     ) -> tuple[AnalysisResult, MarkdownSpec, ArchitectureDesign]:
         assert self.fs and self.manager
         self.manager.update_module_status(name, ModuleStatus.ANALYZING)
+        logger.debug(f"[{name}] Step 1 start — source_file={source_file_path}")
 
         # 1-A: Understand
         console.print("  [cyan]Step 1-A[/cyan] Understanding Java module…")
         analysis = UnderstandAgent().run(source_code, name, source_file_path)
 
         # Validation A: AST check
+        logger.debug(f"[{name}] Running AST checker")
         ast_result = ASTChecker().check(source_code, analysis)
+        logger.debug(f"[{name}] AST check result: passed={ast_result.passed}  issues={len(ast_result.issues)}  warnings={len(ast_result.warnings)}")
         if not ast_result.passed:
             for issue in ast_result.issues:
                 console.print(f"    [yellow]⚠ AST:[/yellow] {issue}")
@@ -201,7 +221,9 @@ class HubAgent:
 
         # Validation B: Architecture audit
         console.print("  [cyan]Step 1 Audit[/cyan] Reviewing architecture…")
+        logger.debug(f"[{name}] Running architecture auditor")
         audit_result = ArchAuditor().check(design)
+        logger.debug(f"[{name}] Arch audit result: passed={audit_result.passed}  issues={len(audit_result.issues)}  warnings={len(audit_result.warnings)}")
         if not audit_result.passed:
             for issue in audit_result.issues:
                 console.print(f"    [red]✗ Arch:[/red] {issue}")
@@ -312,9 +334,11 @@ class HubAgent:
         py_path = str(request.output_dir / name / f"{name}.py")
         previous_error: str | None = None
 
+        logger.debug(f"[{name}] Step 3 start — max_retries={request.max_retries}  py_path={py_path}")
         for attempt in range(request.max_retries + 1):
             label = "initial" if attempt == 0 else f"retry {attempt}/{request.max_retries}"
             console.print(f"  [green]Step 3[/green] Converting ({label})…")
+            logger.debug(f"[{name}] Conversion attempt {attempt + 1}/{request.max_retries + 1}")
 
             conversion = await ConverterAgent(self.vectordb).run(
                 design, test_suite, py_path,
@@ -327,6 +351,7 @@ class HubAgent:
             # mypy — fast type check before full pytest run
             console.print("  [green]Step 3[/green] mypy check…")
             mypy_result = await MypyChecker(self.executor).check(py_path, name)
+            logger.debug(f"[{name}] mypy result: passed={mypy_result.passed}  issues={len(mypy_result.issues)}")
             if not mypy_result.passed:
                 console.print(
                     f"    [yellow]mypy issues ({len(mypy_result.issues)}):[/yellow] "
@@ -334,11 +359,13 @@ class HubAgent:
                 )
                 previous_error = f"mypy errors:\n{mypy_result.details}"
                 self.manager.increment_retry(name)
+                logger.debug(f"[{name}] mypy failed — will retry conversion")
                 continue
 
             # pytest — full test suite
             console.print("  [green]Step 3[/green] Running pytest…")
             test_result = await PytestRunner(self.executor).run(test_suite.output_path, name)
+            logger.debug(f"[{name}] pytest result: passed={test_result.passed}  error_lines={len(test_result.issues)}")
             if test_result.passed:
                 console.print(f"  [bold green]✓ {name} — all tests pass![/bold green]")
 

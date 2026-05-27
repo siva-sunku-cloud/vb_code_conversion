@@ -15,6 +15,12 @@ class ArchAuditor(BaseAgent):
 
     def check(self, design: ArchitectureDesign) -> ValidationResult:
         self.logger.info(f"Auditing architecture for: {design.module_name}")
+        self.logger.debug(
+            f"[{design.module_name}] dataclasses={len(design.dataclasses)}"
+            f"  public_api={len(design.public_api)}"
+            f"  module_boundaries={len(design.module_boundaries)}"
+            f"  dependency_injection={len(design.dependency_injection)}"
+        )
 
         response = self._call_llm(
             system=ARCH_AUDIT_SYSTEM,
@@ -33,7 +39,15 @@ class ArchAuditor(BaseAgent):
         data = self._parse_json(response)
         result = ValidationResult(**data)
         self.logger.info(
-            f"[{design.module_name}] arch audit: {'PASS' if result.passed else 'FAIL'} "
-            f"({len(result.issues)} issues)"
+            f"[{design.module_name}] arch audit: {'PASS' if result.passed else 'FAIL'}"
+            f"  issues={len(result.issues)}  warnings={len(result.warnings)}"
         )
+        if result.issues:
+            for issue in result.issues:
+                self.logger.debug(f"[{design.module_name}]   issue: {issue}")
+        if result.warnings:
+            for warning in result.warnings:
+                self.logger.debug(f"[{design.module_name}]   warning: {warning}")
+        if result.details:
+            self.logger.debug(f"[{design.module_name}] audit details: {result.details[:300]}")
         return result

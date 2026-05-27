@@ -16,6 +16,12 @@ class DocumentAgent(BaseAgent):
 
     def run(self, analysis: AnalysisResult, output_path: str) -> MarkdownSpec:
         self.logger.info(f"Documenting module: {analysis.module_name}")
+        self.logger.debug(
+            f"[{analysis.module_name}] output_path={output_path}"
+            f"  complexity={analysis.complexity_score:.2f}"
+            f"  business_logic_items={len(analysis.business_logic)}"
+            f"  data_structures={len(analysis.data_structures)}"
+        )
 
         response = self._call_llm(
             system=DOCUMENT_SYSTEM,
@@ -33,6 +39,10 @@ class DocumentAgent(BaseAgent):
 
         content = self._text(response)
         self.logger.info(f"[{analysis.module_name}] spec written ({len(content)} chars)")
+        self.logger.debug(
+            f"[{analysis.module_name}] spec lines={len(content.splitlines())}"
+            f"  output_path={output_path}"
+        )
         return MarkdownSpec(
             module_name=analysis.module_name,
             content=content,

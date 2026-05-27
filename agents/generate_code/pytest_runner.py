@@ -18,11 +18,19 @@ class PytestRunner:
 
     async def run(self, test_file_path: str, module_name: str) -> ValidationResult:
         logger.info(f"Running pytest for: {module_name}")
+        logger.debug(f"[{module_name}] test_file={test_file_path}")
 
         result = await self.executor.run_pytest(test_file_path)
 
+        logger.debug(
+            f"[{module_name}] pytest stdout_chars={len(result.stdout)}"
+            f"  combined_chars={len(result.combined)}"
+            f"  passed={result.passed}"
+        )
+
         if result.passed:
             logger.info(f"[{module_name}] pytest PASS ✓")
+            logger.debug(f"[{module_name}] pytest output: {result.stdout[:500]}")
             return ValidationResult(passed=True, details=result.stdout)
 
         # Build a focused error report for the Converter Agent
@@ -31,4 +39,6 @@ class PytestRunner:
             if any(kw in line for kw in ("FAILED", "ERROR", "AssertionError", "assert", "E "))
         ]
         logger.warning(f"[{module_name}] pytest FAIL — {len(error_lines)} error lines")
+        for line in error_lines[:10]:
+            logger.debug(f"[{module_name}]   pytest error: {line}")
         return ValidationResult(passed=False, issues=error_lines, details=result.combined)
