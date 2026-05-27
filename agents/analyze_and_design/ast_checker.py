@@ -21,6 +21,11 @@ _CLASS_RE = re.compile(
     re.MULTILINE,
 )
 _INTERFACE_RE = re.compile(r"^\s*(public|private)?\s*interface\s+(\w+)", re.MULTILINE)
+# Java accessor prefix pattern — getXxx / setXxx / isXxx with a capital letter following.
+# These map directly to Python dataclass field accesses and are excluded from the
+# method-coverage check (they are verified implicitly via data_structures field capture).
+_ACCESSOR_RE = re.compile(r"^(get|set|is)[A-Z]")
+
 _NULL_RETURN_RE = re.compile(r"\breturn\s+null\b")
 _INSTANCEOF_RE = re.compile(r"\binstanceof\b")
 _SYNC_RE = re.compile(r"\bsynchronized\b")
@@ -37,14 +42,25 @@ class ASTChecker:
             f" source_lines={len(source.splitlines())}  source_chars={len(source)}"
         )
 
-        # Collect method names found in source
-        src_methods = {m.group(2).lower() for m in _METHOD_RE.finditer(source)
-                       if m.group(2) not in ("if", "while", "for", "switch", "catch")}
+        # Collect method names found in source, excluding Java accessor boilerplate.
+        # Getters/setters (getX / setX / isX) become dataclass field accesses in Python
+        # and are verified implicitly through data_structures field capture, not here.
+        _KEYWORDS = {"if", "while", "for", "switch", "catch", "new"}
+        all_src_methods = {m.group(2) for m in _METHOD_RE.finditer(source)
+                           if m.group(2) not in _KEYWORDS
+                           and not m.group(2)[0].isupper()}  # exclude constructors / new Foo(
+        accessors = {n for n in all_src_methods if _ACCESSOR_RE.match(n)}
+        src_methods = {n.lower() for n in all_src_methods - accessors}
+        if accessors:
+            logger.debug(f"[{analysis.module_name}] accessor methods excluded from check ({len(accessors)}): {sorted(accessors)}")
         logger.debug(f"[{analysis.module_name}] methods found in source ({len(src_methods)}): {sorted(src_methods)}")
 
-        # Compare against what the Understand Agent captured
-        captured = {p.split("(")[0].strip().lower()
-                    for p in analysis.control_flow.get("methods", [])}
+        # Compare against what the Understand Agent captured.
+        # Signatures may include modifiers/return type ("public BigDecimal foo(...)"),
+        # so take the last whitespace-delimited token before "(" as the method name.
+        captured = {p.split("(")[0].strip().split()[-1].lower()
+                    for p in analysis.control_flow.get("methods", [])
+                    if p.split("(")[0].strip()}
         logger.debug(f"[{analysis.module_name}] methods captured in analysis ({len(captured)}): {sorted(captured)}")
         missing = src_methods - captured
         for name in sorted(missing):
@@ -59,6 +75,8 @@ class ASTChecker:
             for ds in analysis.data_structures
             if "class" in ds.get("type", "").lower()
         }
+        # The outer class shares the module name and is never in data_structures
+        captured_classes.add(analysis.module_name.lower())
         logger.debug(f"[{analysis.module_name}] classes captured in analysis ({len(captured_classes)}): {sorted(captured_classes)}")
         for name in sorted(src_classes - captured_classes):
             issues.append(f"Class '{name}' found in source but not captured in analysis.")

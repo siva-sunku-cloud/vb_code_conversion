@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -8,7 +9,9 @@ from rich.logging import RichHandler
 def setup_logging() -> None:
     from config import Config
 
-    level = getattr(logging, Config.LOG_LEVEL, logging.DEBUG)
+    # Read at call time so --log-level CLI flag (set via os.environ) takes effect
+    level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
+    level = getattr(logging, level_name, logging.DEBUG)
 
     log_dir = Path(Config.LOG_FOLDER)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -35,7 +38,7 @@ def setup_logging() -> None:
     )
 
     logging.getLogger(__name__).debug(
-        f"Logging initialised — level={Config.LOG_LEVEL}  file={log_file}"
+        f"Logging initialised — level={level_name}  file={log_file}"
     )
 
 

@@ -155,17 +155,32 @@ class HubAgent:
     ) -> None:
         assert self.fs and self.executor and self.manager
         name = module_state.name
+        start = request.start_step
         console.rule(f"[bold cyan]Module: {name}[/bold cyan]")
+        if start != "1a":
+            console.print(f"  [dim]Resuming from step [bold]{start}[/bold][/dim]")
 
         try:
             logger.debug(f"[{name}] Reading source file: {module_state.source_file_path}")
             source_code = await self.fs.read_text(module_state.source_file_path)
             logger.debug(f"[{name}] Source loaded — {len(source_code.splitlines())} lines  {len(source_code)} chars")
 
-            analysis, spec, design = await self._analyze_and_design(name, source_code, module_state.source_file_path, request)
-            logger.debug(f"[{name}] Step 1 complete — proceeding to Step 2")
-            test_suite = await self._build_test_execute(name, spec, design, request)
-            logger.debug(f"[{name}] Step 2 complete — proceeding to Step 3")
+            if start in ("1a", "1b", "1c"):
+                analysis, spec, design = await self._analyze_and_design(
+                    name, source_code, module_state.source_file_path, request
+                )
+                logger.debug(f"[{name}] Step 1 complete — proceeding to Step 2")
+            else:
+                analysis, spec, design = await self._load_step1_artifacts(name, request)
+                logger.debug(f"[{name}] Step 1 skipped — artifacts loaded from disk")
+
+            if start in ("1a", "1b", "1c", "2"):
+                test_suite = await self._build_test_execute(name, spec, design, request)
+                logger.debug(f"[{name}] Step 2 complete — proceeding to Step 3")
+            else:
+                test_suite = await self._load_test_suite(name, request)
+                logger.debug(f"[{name}] Step 2 skipped — test suite loaded from disk")
+
             await self._generate_code(name, design, test_suite, request)
             logger.debug(f"[{name}] Step 3 complete")
 
@@ -189,14 +204,27 @@ class HubAgent:
         request: MigrationRequest,
     ) -> tuple[AnalysisResult, MarkdownSpec, ArchitectureDesign]:
         assert self.fs and self.manager
-        self.manager.update_module_status(name, ModuleStatus.ANALYZING)
-        logger.debug(f"[{name}] Step 1 start — source_file={source_file_path}")
+        start = request.start_step
+        logger.debug(f"[{name}] Step 1 start — source_file={source_file_path}  start_step={start}")
 
-        # 1-A: Understand
-        console.print("  [cyan]Step 1-A[/cyan] Understanding Java module…")
-        analysis = UnderstandAgent().run(source_code, name, source_file_path)
+        analysis_path = str(request.output_dir / name / f"{name}_analysis.json")
+        spec_path     = str(request.output_dir / name / f"{name}_spec.md")
+        arch_path     = str(request.output_dir / name / f"{name}_architecture.json")
 
-        # Validation A: AST check
+        # ── 1-A: Understand ───────────────────────────────────────────────────
+        if start == "1a":
+            self.manager.update_module_status(name, ModuleStatus.ANALYZING)
+            console.print("  [cyan]Step 1-A[/cyan] Understanding Java module…")
+            analysis = UnderstandAgent().run(source_code, name, source_file_path)
+            # Persist so later sub-steps can reload without re-running the LLM
+            await self.fs.write_json(analysis_path, analysis.model_dump())
+            self.manager.add_artifact(name, "analysis", analysis_path)
+        else:
+            console.print(f"  [dim]Step 1-A skipped — loading analysis from disk[/dim]")
+            data = await self.fs.read_json(analysis_path)
+            analysis = AnalysisResult(**data)
+
+        # Validation A: AST check (always run — cheap, needed for human-gate summary)
         logger.debug(f"[{name}] Running AST checker")
         ast_result = ASTChecker().check(source_code, analysis)
         logger.debug(f"[{name}] AST check result: passed={ast_result.passed}  issues={len(ast_result.issues)}  warnings={len(ast_result.warnings)}")
@@ -204,17 +232,20 @@ class HubAgent:
             for issue in ast_result.issues:
                 console.print(f"    [yellow]⚠ AST:[/yellow] {issue}")
 
-        # 1-B: Document
-        console.print("  [cyan]Step 1-B[/cyan] Writing Markdown spec…")
-        spec_path = str(request.output_dir / name / f"{name}_spec.md")
-        spec = DocumentAgent().run(analysis, spec_path)
-        await self.fs.write_text(spec_path, spec.content)
-        self.manager.add_artifact(name, "spec", spec_path)
-        self.manager.update_module_status(name, ModuleStatus.DOCUMENTED)
+        # ── 1-B: Document ─────────────────────────────────────────────────────
+        if start in ("1a", "1b"):
+            console.print("  [cyan]Step 1-B[/cyan] Writing Markdown spec…")
+            spec = DocumentAgent().run(analysis, spec_path)
+            await self.fs.write_text(spec_path, spec.content)
+            self.manager.add_artifact(name, "spec", spec_path)
+            self.manager.update_module_status(name, ModuleStatus.DOCUMENTED)
+        else:
+            console.print(f"  [dim]Step 1-B skipped — loading spec from disk[/dim]")
+            content = await self.fs.read_text(spec_path)
+            spec = MarkdownSpec(module_name=name, content=content, output_path=spec_path)
 
-        # 1-C: Architect
+        # ── 1-C: Architect (always run when inside Step 1) ────────────────────
         console.print("  [cyan]Step 1-C[/cyan] Designing Python architecture…")
-        arch_path = str(request.output_dir / name / f"{name}_architecture.json")
         design = ArchitectAgent().run(analysis, spec, arch_path)
         await self.fs.write_json(arch_path, design.model_dump())
         self.manager.add_artifact(name, "architecture", arch_path)
@@ -398,6 +429,51 @@ class HubAgent:
         console.print(f"  [bold red]✗ {name} — retry budget exhausted. Escalating to CLI.[/bold red]")
         self._escalate_to_cli(name, previous_error or "Unknown error")
         self.manager.update_module_status(name, ModuleStatus.FAILED, "Retry budget exhausted")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Artifact loaders (used when skipping completed steps)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    async def _load_step1_artifacts(
+        self, name: str, request: MigrationRequest
+    ) -> tuple[AnalysisResult, MarkdownSpec, ArchitectureDesign]:
+        assert self.fs
+        console.print(f"  [dim]Step 1 skipped — loading artifacts from disk[/dim]")
+
+        analysis_path = str(request.output_dir / name / f"{name}_analysis.json")
+        spec_path     = str(request.output_dir / name / f"{name}_spec.md")
+        arch_path     = str(request.output_dir / name / f"{name}_architecture.json")
+
+        analysis_data = await self.fs.read_json(analysis_path)
+        analysis = AnalysisResult(**analysis_data)
+
+        spec_content = await self.fs.read_text(spec_path)
+        spec = MarkdownSpec(module_name=name, content=spec_content, output_path=spec_path)
+
+        arch_data = await self.fs.read_json(arch_path)
+        arch_data.setdefault("output_path", arch_path)
+        design = ArchitectureDesign(**arch_data)
+
+        logger.debug(f"[{name}] Step 1 artifacts loaded from disk")
+        return analysis, spec, design
+
+    async def _load_test_suite(
+        self, name: str, request: MigrationRequest
+    ) -> TestSuite:
+        assert self.fs
+        console.print(f"  [dim]Step 2 skipped — loading test suite from disk[/dim]")
+
+        test_path = str(request.output_dir / name / f"test_{name}.py")
+        test_code = await self.fs.read_text(test_path)
+        suite = TestSuite(
+            module_name=name,
+            test_type="merged",
+            test_code=test_code,
+            output_path=test_path,
+            test_count=test_code.count("\ndef test_"),
+        )
+        logger.debug(f"[{name}] Test suite loaded from disk — {suite.test_count} tests")
+        return suite
 
     # ══════════════════════════════════════════════════════════════════════════
     # Human-in-the-loop helpers

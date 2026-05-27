@@ -21,6 +21,8 @@ class MigrationRequest(BaseModel):
     source_dir: Path
     output_dir: Path
     max_retries: int = 3
+    # Where to enter the pipeline: 1a | 1b | 1c | 2 | 3
+    start_step: str = "1a"
 
 
 class ModuleState(BaseModel):
