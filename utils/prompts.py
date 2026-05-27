@@ -68,6 +68,10 @@ Python standards to enforce:
 - Replace checked exceptions with specific Python exception hierarchies.
 - Replace null returns with Optional[T] or raise ValueError.
 - Replace synchronized/Thread with asyncio where appropriate.
+- For dataclass fields with mutable defaults, set "default" to "field(default_factory=list)",
+  "field(default_factory=dict)", etc. — NEVER use "[]" or "{}" as a default value directly.
+  Only use literal defaults for immutable types (int, str, float, Decimal, bool).
+  Required fields with no default must use null.
 Output ONLY the JSON object."""
 
 ARCH_AUDIT_SYSTEM = """You are a senior Python code reviewer conducting an architecture audit.

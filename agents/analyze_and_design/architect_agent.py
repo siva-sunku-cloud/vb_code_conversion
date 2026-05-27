@@ -9,6 +9,22 @@ from models.artifacts import AnalysisResult, MarkdownSpec, ArchitectureDesign
 from utils.prompts import ARCHITECT_SYSTEM
 
 
+_MUTABLE_DEFAULT_MAP = {
+    "[]": "field(default_factory=list)",
+    "{}": "field(default_factory=dict)",
+    "set()": "field(default_factory=set)",
+}
+
+
+def _fix_mutable_defaults(data: dict) -> None:
+    """Normalise mutable defaults the LLM may have emitted as bare literals."""
+    for dc in data.get("dataclasses", []):
+        for field in dc.get("fields", []):
+            val = field.get("default")
+            if val in _MUTABLE_DEFAULT_MAP:
+                field["default"] = _MUTABLE_DEFAULT_MAP[val]
+
+
 class ArchitectAgent(BaseAgent):
     def __init__(self):
         super().__init__("ArchitectAgent")
@@ -46,6 +62,8 @@ class ArchitectAgent(BaseAgent):
         data = self._parse_json(response)
         data["module_name"] = analysis.module_name
         data["output_path"] = output_path
+
+        _fix_mutable_defaults(data)
 
         design = ArchitectureDesign(**data)
         self.logger.info(

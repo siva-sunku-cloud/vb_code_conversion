@@ -25,7 +25,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="run_pytest_collect",
-            description="Run pytest --collect-only to validate test syntax without executing any tests.",
+            description="Check Python syntax of a test file using py_compile (no imports required).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -65,7 +65,11 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
     args = arguments or {}
 
     if name == "run_pytest_collect":
-        result = _run([sys.executable, "-m", "pytest", "--collect-only", "-q", args["test_file"]])
+        # Use py_compile for syntax-only check — no imports executed, so missing
+        # application modules don't cause a false ImportError at this stage.
+        result = _run([sys.executable, "-m", "py_compile", args["test_file"]])
+        if result["returncode"] == 0:
+            result["stdout"] = f"Syntax OK: {args['test_file']}"
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     if name == "run_pytest":
