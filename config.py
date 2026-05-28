@@ -23,6 +23,11 @@ _DEFAULTS: dict[str, dict[str, str]] = {
         "agent": "github/gpt-4o",
         "hub":   "github/gpt-4o",
     },
+    # Azure OpenAI — model names are prefixed with "azure/<deployment-name>"
+    "azure": {
+        "agent": "azure/gpt-4o",
+        "hub":   "azure/gpt-4o",
+    },
 }
 
 
@@ -40,6 +45,11 @@ class Config:
     # Custom endpoint — set when using a company proxy instead of the provider's default URL.
     # LiteLLM passes this as api_base; leave empty to use the provider's standard endpoint.
     LLM_API_BASE: str = os.getenv("LLM_API_BASE", "")
+
+    # Azure OpenAI — populated by setup when LLM_PROVIDER=azure
+    AZURE_API_BASE: str    = os.getenv("AZURE_API_BASE", "")
+    AZURE_DEPLOYMENT: str  = os.getenv("AZURE_DEPLOYMENT", "")
+    AZURE_API_VERSION: str = os.getenv("AZURE_API_VERSION", "2025-01-01-preview")
 
     # Ollama — used only for vectordb embeddings (translation memory)
     OLLAMA_BASE_URL: str    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

@@ -19,6 +19,11 @@ os.environ.setdefault("GEMINI_API_KEY",    Config.GEMINI_API_KEY)
 # GitHub Copilot uses GITHUB_TOKEN for litellm's github/ model prefix
 if Config.LLM_PROVIDER == "copilot" and Config.GITHUB_COPILOT_TOKEN:
     os.environ.setdefault("GITHUB_TOKEN", Config.GITHUB_COPILOT_TOKEN)
+# Azure OpenAI needs its own env vars so LiteLLM's azure provider picks them up
+if Config.LLM_PROVIDER == "azure":
+    os.environ.setdefault("AZURE_API_KEY",     Config.OPENAI_API_KEY)
+    os.environ.setdefault("AZURE_API_BASE",    Config.AZURE_API_BASE)
+    os.environ.setdefault("AZURE_API_VERSION", Config.AZURE_API_VERSION)
 
 
 class BaseAgent(ABC):
@@ -52,7 +57,10 @@ class BaseAgent(ABC):
             "messages":   all_messages,
             "max_tokens": max_tokens,
         }
-        if Config.LLM_API_BASE:
+        if Config.LLM_PROVIDER == "azure":
+            kwargs["api_base"]    = Config.AZURE_API_BASE
+            kwargs["api_version"] = Config.AZURE_API_VERSION
+        elif Config.LLM_API_BASE:
             kwargs["api_base"] = Config.LLM_API_BASE
         if tools:
             kwargs["tools"] = tools
