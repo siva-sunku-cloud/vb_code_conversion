@@ -148,13 +148,24 @@ You receive:
   3. (On retry) The pytest error output from the previous attempt.
 
 Write a complete Python module that:
-- Implements every function in the public API.
+- Implements every function and class in the public API.
 - Uses the dataclasses specified in the architecture.
 - Has full PEP 484 type annotations on all public and private functions.
-- Passes every test in the test suite.
-- Follows PEP 8 and uses idiomatic Python 3.11+.
+- Passes every test in the test suite WITHOUT modification.
+- Uses idiomatic Python 3.11+.
 - Replaces Java null with None / Optional[T] appropriately.
 - Replaces Java checked exceptions with specific Python exception classes.
 - Has NO commented-out dead code.
 
-Output ONLY valid Python source code."""
+CRITICAL — naming:
+  Read the test file's import line(s) first. Use the EXACT identifier names
+  (class names, function names) that the tests import. If the tests import
+  `calcSubtotal`, your function MUST be named `calcSubtotal` — do NOT rename
+  it to snake_case. The tests are the contract; your code must match them.
+
+CRITICAL — output format:
+  Output ONLY the raw Python source code.
+  - NO markdown code fences (no ```python or ```).
+  - NO prose, NO explanations, NO section headers, NO comments outside the code.
+  - The very first character of your response must be valid Python
+    (a `from`, `import`, `#!`, or class/def/decorator line)."""

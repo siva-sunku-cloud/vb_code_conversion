@@ -7,6 +7,7 @@ iterates until all tests pass or the retry budget is exhausted.
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from agents.base_agent import BaseAgent
@@ -72,8 +73,13 @@ class ConverterAgent(BaseAgent):
         )
 
         python_code = self._text(response).strip()
-        if python_code.startswith("```"):
-            python_code = python_code.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+        # Extract the first ```python … ``` or ``` … ``` block if the LLM added
+        # prose/markdown around the code despite the system prompt instructions.
+        fence_match = re.search(r"```(?:python)?\n(.*?)```", python_code, re.DOTALL)
+        if fence_match:
+            python_code = fence_match.group(1).strip()
+            self.logger.debug(f"[{design.module_name}] stripped markdown fences from response")
 
         lines = python_code.splitlines()
         self.logger.info(f"[{design.module_name}] generated {len(lines)} lines")

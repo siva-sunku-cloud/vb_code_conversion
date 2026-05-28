@@ -379,6 +379,29 @@ class HubAgent:
             await self.fs.write_text(py_path, conversion.python_code)
             self.manager.add_artifact(name, "python_source", py_path)
 
+            # Log clearly that new code was written and where
+            lines_generated = len(conversion.python_code.splitlines())
+            console.print(
+                f"  [green]✓ Code written:[/green] [bold]{lines_generated} lines[/bold]"
+                f" → [bold cyan]{py_path}[/bold cyan]"
+            )
+            logger.info(f"[{name}] Code written to disk: {py_path}  ({lines_generated} lines)")
+
+            # Human gate — review generated code before running any checks
+            gate_approved = self._human_gate(
+                title=f"Step 3 — Review Generated Code (attempt {attempt + 1}/{request.max_retries + 1})",
+                body=(
+                    f"Module:    [bold]{name}[/bold]\n"
+                    f"Lines:     [bold]{lines_generated}[/bold]\n"
+                    f"File:      [bold cyan]{py_path}[/bold cyan]\n\n"
+                    f"Open the file above to inspect the generated Python code.\n"
+                    f"Proceeding will run mypy then pytest."
+                ),
+                question="Approve generated code? Proceed to mypy and pytest?",
+            )
+            if not gate_approved:
+                raise HumanRejectionError(name)
+
             # mypy — fast type check before full pytest run
             console.print("  [green]Step 3[/green] mypy check…")
             mypy_result = await MypyChecker(self.executor).check(py_path, name)
@@ -393,8 +416,11 @@ class HubAgent:
                 logger.debug(f"[{name}] mypy failed — will retry conversion")
                 continue
 
-            # pytest — full test suite
-            console.print("  [green]Step 3[/green] Running pytest…")
+            # pytest — show command then run full test suite
+            pytest_cmd = f"python -m pytest -v {test_suite.output_path}"
+            console.print(f"  [green]Step 3[/green] Running pytest…")
+            console.print(f"  [dim]Command:[/dim] [cyan]{pytest_cmd}[/cyan]")
+            logger.info(f"[{name}] Invoking: {pytest_cmd}")
             test_result = await PytestRunner(self.executor).run(test_suite.output_path, name)
             logger.debug(f"[{name}] pytest result: passed={test_result.passed}  error_lines={len(test_result.issues)}")
             if test_result.passed:
