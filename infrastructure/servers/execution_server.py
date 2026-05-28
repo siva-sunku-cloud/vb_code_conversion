@@ -23,11 +23,23 @@ _working_dir: Path = Path(".").resolve()
 
 @functools.lru_cache(maxsize=1)
 def _mypy_available() -> bool:
-    r = subprocess.run(
-        [sys.executable, "-m", "mypy", "--version"],
-        capture_output=True, text=True,
-    )
-    return r.returncode == 0
+    try:
+        import mypy.api  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _run_mypy_inprocess(source_file: str) -> dict:
+    """Call mypy via its Python API — no subprocess, no pipe issues."""
+    import mypy.api
+    stdout, stderr, exit_code = mypy.api.run([
+        "--strict",
+        "--ignore-missing-imports",
+        "--follow-imports=skip",
+        source_file,
+    ])
+    return {"returncode": exit_code, "stdout": stdout, "stderr": stderr}
 
 
 @server.list_tools()
@@ -83,7 +95,8 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     if name == "run_pytest":
-        flags = ["-v"] if args.get("verbose", True) else ["-q"]
+        # --tb=short: compact tracebacks so every failure is visible without flooding output
+        flags = ["-v", "--tb=short"] if args.get("verbose", True) else ["-q", "--tb=short"]
         result = await _run([sys.executable, "-m", "pytest"] + flags + [args["test_file"]], timeout=120.0)
         return [types.TextContent(type="text", text=json.dumps(result))]
 
@@ -94,31 +107,65 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
                 "stdout": "mypy skipped (not installed)",
                 "stderr": "",
             }))]
-        result = await _run([sys.executable, "-m", "mypy", "--strict", args["source_file"]])
+        # Run mypy via its Python API in a thread — avoids spawning a subprocess
+        # so there are no pipe-inheritance issues and no conda cold-start delay.
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_run_mypy_inprocess, args["source_file"]),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            result = {"returncode": -1, "stdout": "", "stderr": "mypy timed out after 60s"}
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     raise ValueError(f"Unknown tool: {name}")
 
 
 async def _run(cmd: list[str], timeout: float = 60.0) -> dict:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        stdin=asyncio.subprocess.DEVNULL,
-        cwd=str(_working_dir),
-    )
+    """Run an external command in a thread.
+
+    Uses Popen so we can kill the entire process tree on Windows timeout.
+    subprocess.run(timeout=...) has a bug: after proc.kill() it calls
+    communicate() again with no timeout, which hangs if child processes
+    still hold the stdout/stderr pipe handles.
+    """
+    def _blocking() -> dict:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            cwd=str(_working_dir),
+        )
+        try:
+            stdout_b, stderr_b = proc.communicate(timeout=timeout)
+            return {
+                "returncode": proc.returncode,
+                "stdout": stdout_b.decode("utf-8", errors="replace"),
+                "stderr": stderr_b.decode("utf-8", errors="replace"),
+            }
+        except subprocess.TimeoutExpired:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    capture_output=True,
+                )
+            else:
+                proc.kill()
+            try:
+                stdout_b, stderr_b = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                stdout_b, stderr_b = b"", b""
+            return {
+                "returncode": -1,
+                "stdout": stdout_b.decode("utf-8", errors="replace") if stdout_b else "",
+                "stderr": f"Command timed out after {timeout}s",
+            }
+
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return await asyncio.wait_for(asyncio.to_thread(_blocking), timeout=timeout + 15)
     except asyncio.TimeoutError:
-        proc.kill()
-        await proc.communicate()
         return {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
-    return {
-        "returncode": proc.returncode,
-        "stdout": stdout_bytes.decode("utf-8", errors="replace"),
-        "stderr": stderr_bytes.decode("utf-8", errors="replace"),
-    }
 
 
 async def main() -> None:

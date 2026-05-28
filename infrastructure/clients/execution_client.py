@@ -7,6 +7,7 @@ and DryRunRunner.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,5 +47,8 @@ class ExecutionClient(BaseMCPClient):
         return ExecResult(**json.loads(raw))
 
     async def run_mypy(self, source_file: str) -> ExecResult:
-        raw = await self._call("run_mypy", source_file=source_file)
-        return ExecResult(**json.loads(raw))
+        try:
+            raw = await self._call("run_mypy", source_file=source_file)
+            return ExecResult(**json.loads(raw))
+        except asyncio.TimeoutError:
+            return ExecResult(returncode=-1, stdout="", stderr="mypy timed out")

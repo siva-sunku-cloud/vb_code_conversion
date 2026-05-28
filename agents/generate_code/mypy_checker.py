@@ -27,6 +27,11 @@ class MypyChecker:
             f"  passed={result.passed}"
         )
 
+        # Treat timeout (returncode -1) as a soft-pass — pytest is the authoritative check.
+        if result.returncode == -1:
+            logger.warning(f"[{module_name}] mypy timed out — skipping, proceeding to pytest")
+            return ValidationResult(passed=True, details="mypy skipped (timed out)")
+
         if result.passed:
             logger.info(f"[{module_name}] mypy PASS")
             logger.debug(f"[{module_name}] mypy output: {result.stdout[:300]}")

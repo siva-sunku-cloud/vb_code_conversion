@@ -39,6 +39,8 @@ class ValidationResult(BaseModel):
     issues: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     details: str = ""
+    passed_count: int = 0
+    failed_count: int = 0
 
 
 class TestSuite(BaseModel):

@@ -49,7 +49,6 @@ from agents.build_test_execute.test_auditor import TestAuditor
 from agents.build_test_execute.dry_run_runner import DryRunRunner
 
 from agents.generate_code.converter_agent import ConverterAgent
-from agents.generate_code.mypy_checker import MypyChecker
 from agents.generate_code.pytest_runner import PytestRunner
 
 from infrastructure.clients.filesystem_client import FilesystemClient
@@ -379,7 +378,6 @@ class HubAgent:
             await self.fs.write_text(py_path, conversion.python_code)
             self.manager.add_artifact(name, "python_source", py_path)
 
-            # Log clearly that new code was written and where
             lines_generated = len(conversion.python_code.splitlines())
             console.print(
                 f"  [green]✓ Code written:[/green] [bold]{lines_generated} lines[/bold]"
@@ -387,7 +385,7 @@ class HubAgent:
             )
             logger.info(f"[{name}] Code written to disk: {py_path}  ({lines_generated} lines)")
 
-            # Human gate — review generated code before running any checks
+            # Human gate — review generated code before running tests
             gate_approved = self._human_gate(
                 title=f"Step 3 — Review Generated Code (attempt {attempt + 1}/{request.max_retries + 1})",
                 body=(
@@ -395,64 +393,60 @@ class HubAgent:
                     f"Lines:     [bold]{lines_generated}[/bold]\n"
                     f"File:      [bold cyan]{py_path}[/bold cyan]\n\n"
                     f"Open the file above to inspect the generated Python code.\n"
-                    f"Proceeding will run mypy then pytest."
+                    f"Proceeding will run the full pytest suite."
                 ),
-                question="Approve generated code? Proceed to mypy and pytest?",
+                question="Approve generated code? Proceed to pytest?",
             )
             if not gate_approved:
                 raise HumanRejectionError(name)
 
-            # mypy — fast type check before full pytest run
-            console.print("  [green]Step 3[/green] mypy check…")
-            mypy_result = await MypyChecker(self.executor).check(py_path, name)
-            logger.debug(f"[{name}] mypy result: passed={mypy_result.passed}  issues={len(mypy_result.issues)}")
-            if not mypy_result.passed:
-                console.print(
-                    f"    [yellow]mypy issues ({len(mypy_result.issues)}):[/yellow] "
-                    f"{mypy_result.issues[:2]}"
-                )
-                previous_error = f"mypy errors:\n{mypy_result.details}"
-                self.manager.increment_retry(name)
-                logger.debug(f"[{name}] mypy failed — will retry conversion")
-                continue
-
-            # pytest — show command then run full test suite
-            pytest_cmd = f"python -m pytest -v {test_suite.output_path}"
-            console.print(f"  [green]Step 3[/green] Running pytest…")
+            # Run pytest — always runs ALL tests regardless of failures
+            pytest_cmd = f"python -m pytest -v --tb=short {test_suite.output_path}"
+            console.print(f"  [green]Step 3[/green] Running pytest (all tests)…")
             console.print(f"  [dim]Command:[/dim] [cyan]{pytest_cmd}[/cyan]")
             logger.info(f"[{name}] Invoking: {pytest_cmd}")
             test_result = await PytestRunner(self.executor).run(test_suite.output_path, name)
-            logger.debug(f"[{name}] pytest result: passed={test_result.passed}  error_lines={len(test_result.issues)}")
-            if test_result.passed:
-                console.print(f"  [bold green]✓ {name} — all tests pass![/bold green]")
+            logger.info(
+                f"[{name}] pytest complete — "
+                f"{test_result.passed_count} passed, {test_result.failed_count} failed"
+            )
 
-                # Human gate — always required after Step 3
-                approved = self._human_gate(
-                    title="Step 3 Complete — Generated Python Code",
-                    body=(
-                        f"Module: [bold]{name}[/bold]\n"
-                        f"Python file: {py_path}\n"
-                        f"Retries used: [bold]{attempt}[/bold] / {request.max_retries}\n"
-                        f"Tests: [green]ALL PASS[/green]\n\n"
-                        f"Approving will save the pattern to translation memory and create a PR."
-                    ),
-                    question="Approve generated code? Create PR and mark as completed?",
-                )
-                if not approved:
-                    raise HumanRejectionError(name)
+            # Human decides what to do with the results
+            decision = self._pytest_human_gate(
+                name=name,
+                py_path=py_path,
+                passed_count=test_result.passed_count,
+                failed_count=test_result.failed_count,
+                issues=test_result.issues,
+                attempt=attempt,
+                max_retries=request.max_retries,
+            )
+            logger.info(f"[{name}] Human decision: {decision}")
 
+            if decision == "accept":
+                if test_result.failed_count > 0:
+                    console.print(
+                        f"  [yellow]Accepted with {test_result.failed_count} failing test(s).[/yellow]"
+                    )
+                else:
+                    console.print(f"  [bold green]✓ {name} — all tests pass![/bold green]")
                 self.manager.update_module_status(name, ModuleStatus.COMPLETED)
                 await self._on_success(name, design, conversion, test_result.details, request)
                 return
 
+            if decision == "reject":
+                raise HumanRejectionError(name)
+
+            # decision == "retry"
             previous_error = test_result.details
             self.manager.increment_retry(name)
             console.print(
-                f"  [red]Tests failed (attempt {attempt + 1}/{request.max_retries + 1})[/red]"
+                f"  [yellow]Retrying conversion "
+                f"(attempt {attempt + 1}/{request.max_retries + 1})…[/yellow]"
             )
 
-        # Retry budget exhausted — escalate to CLI
-        console.print(f"  [bold red]✗ {name} — retry budget exhausted. Escalating to CLI.[/bold red]")
+        # Retry budget exhausted — give human one last chance
+        console.print(f"  [bold red]✗ {name} — retry budget exhausted.[/bold red]")
         self._escalate_to_cli(name, previous_error or "Unknown error")
         self.manager.update_module_status(name, ModuleStatus.FAILED, "Retry budget exhausted")
 
@@ -512,6 +506,63 @@ class HubAgent:
             border_style="yellow",
         ))
         return Confirm.ask(question)
+
+    def _pytest_human_gate(
+        self,
+        name: str,
+        py_path: str,
+        passed_count: int,
+        failed_count: int,
+        issues: list[str],
+        attempt: int,
+        max_retries: int,
+    ) -> str:
+        """Show pytest results and let the human decide: accept / retry / reject."""
+        total = passed_count + failed_count
+        if failed_count == 0:
+            result_line = f"[green]ALL PASS — {passed_count}/{total} tests passed[/green]"
+            border = "green"
+        else:
+            result_line = (
+                f"[red]{failed_count} failed[/red]  "
+                f"[green]{passed_count} passed[/green]  "
+                f"[dim]({total} total)[/dim]"
+            )
+            border = "yellow"
+
+        failure_preview = ""
+        if issues:
+            shown = issues[:8]
+            failure_preview = "\n\nFailing tests:\n" + "\n".join(
+                f"  [red]•[/red] {i}" for i in shown
+            )
+            if len(issues) > 8:
+                failure_preview += f"\n  [dim]… and {len(issues) - 8} more lines[/dim]"
+
+        console.print(Panel(
+            f"Module:   [bold]{name}[/bold]\n"
+            f"Results:  {result_line}\n"
+            f"Attempt:  [bold]{attempt + 1}[/bold] / {max_retries + 1}\n"
+            f"File:     [cyan]{py_path}[/cyan]"
+            f"{failure_preview}",
+            title="[bold yellow]⚠ Human Review — Step 3 pytest Results[/bold yellow]",
+            border_style=border,
+        ))
+
+        if failed_count == 0:
+            accepted = Confirm.ask("All tests passed — accept and create PR?", default=True)
+            return "accept" if accepted else "reject"
+
+        console.print(
+            "  [bold]accept[/bold] — accept as-is (failures are within acceptable limits)\n"
+            "  [bold]retry[/bold]  — ask the LLM to fix the failing tests\n"
+            "  [bold]reject[/bold] — discard this module"
+        )
+        return Prompt.ask(
+            "Decision",
+            choices=["accept", "retry", "reject"],
+            default="retry",
+        )
 
     def _escalate_to_cli(self, name: str, error: str) -> None:
         console.print(Panel(

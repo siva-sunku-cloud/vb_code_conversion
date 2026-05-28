@@ -6,6 +6,7 @@ via the stdio transport. Subclasses set `server_script` and add typed methods.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -59,7 +60,12 @@ class BaseMCPClient:
     async def _call(self, tool: str, **kwargs: Any) -> str:
         """Call an MCP tool and return the first text content block."""
         assert self.session is not None, "Client is not connected — use async with"
-        result = await self.session.call_tool(tool, kwargs)
+        try:
+            result = await asyncio.wait_for(self.session.call_tool(tool, kwargs), timeout=180.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            # Python 3.8 wait_for bug: CancelledError can leak out instead of TimeoutError.
+            # Re-raise as TimeoutError (subclass of Exception) so callers see a consistent type.
+            raise asyncio.TimeoutError(f"MCP tool call timed out: {tool}") from exc
         if not result.content:
             return ""
         return result.content[0].text or ""  # type: ignore[union-attr]
