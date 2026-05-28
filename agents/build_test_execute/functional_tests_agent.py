@@ -44,10 +44,7 @@ class FunctionalTestsAgent(BaseAgent):
             max_tokens=4096,
         )
 
-        test_code = self._text(response).strip()
-        # Strip markdown fences if present
-        if test_code.startswith("```"):
-            test_code = test_code.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        test_code = self._extract_code(self._text(response))
 
         test_count = test_code.count("def test_")
         self.logger.info(f"[{spec.module_name}] {test_count} functional tests generated")

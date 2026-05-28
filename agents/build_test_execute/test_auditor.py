@@ -45,9 +45,7 @@ class TestAuditor(BaseAgent):
             max_tokens=6000,
         )
 
-        merged_code = self._text(response).strip()
-        if merged_code.startswith("```"):
-            merged_code = merged_code.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        merged_code = self._extract_code(self._text(response))
 
         test_count = merged_code.count("def test_")
         self.logger.info(

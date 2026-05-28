@@ -81,13 +81,28 @@ class BaseAgent(ABC):
         self.logger.debug(f"Response text length: {len(text)} chars")
         return text
 
+    def _extract_code(self, text: str) -> str:
+        """Extract code from a markdown fenced block, stripping any preamble or trailing prose."""
+        text = text.strip()
+        if "```" not in text:
+            return text
+        start = text.find("```")
+        # Skip the opening fence line (e.g. ```python)
+        newline = text.find("\n", start)
+        if newline == -1:
+            return text.strip()
+        start = newline + 1
+        end = text.rfind("```")
+        if end <= start:
+            return text[start:].strip()
+        return text[start:end].strip()
+
     def _parse_json(self, response: ModelResponse) -> dict:
         """Extract and parse JSON from a response, stripping markdown fences."""
         raw = self._text(response).strip()
         original_len = len(raw)
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1]
-            raw = raw.rsplit("```", 1)[0]
+        if "```" in raw:
+            raw = self._extract_code(raw)
             self.logger.debug(f"Stripped markdown fences — {original_len} → {len(raw)} chars")
         data = json.loads(raw)
         self.logger.debug(f"Parsed JSON — top-level keys: {list(data.keys())}")

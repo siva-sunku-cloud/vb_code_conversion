@@ -14,10 +14,37 @@ $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $DataFolder = if ($env:DATA_FOLDER) { $env:DATA_FOLDER } else { Join-Path $HOME "data_code_conversion" }
 $PsExe      = if ($PSVersionTable.PSEdition -eq "Core") { "pwsh" } else { "powershell" }
 
-# Find Python
+# Prefer the vb_migration conda environment; fall back to any working Python
+$CondaEnvName = "vb_migration"
 $Python = $null
-foreach ($cmd in @("python3", "python", "py")) {
-    if (Get-Command $cmd -ErrorAction SilentlyContinue) { $Python = $cmd; break }
+
+# Try conda to locate the env's Python
+if (Get-Command conda -ErrorAction SilentlyContinue) {
+    $envInfo = conda env list 2>$null | Where-Object { $_ -match "^\s*$CondaEnvName\s" }
+    if ($envInfo) {
+        $envPath = ($envInfo -split '\s+' | Where-Object { $_ -match '^[A-Za-z]:\\' -or $_ -match '^/' } | Select-Object -First 1)
+        if ($envPath) {
+            $candidate = Join-Path $envPath "python.exe"
+            if (Test-Path $candidate) {
+                try {
+                    $null = & $candidate --version 2>&1
+                    if ($LASTEXITCODE -eq 0) { $Python = $candidate }
+                } catch {}
+            }
+        }
+    }
+}
+
+# Fall back to any working Python on PATH
+if (-not $Python) {
+    foreach ($cmd in @("python", "python3", "py")) {
+        if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+            try {
+                $null = & $cmd --version 2>&1
+                if ($LASTEXITCODE -eq 0) { $Python = $cmd; break }
+            } catch {}
+        }
+    }
 }
 
 # ---- Helpers -----------------------------------------------------------------
@@ -338,6 +365,7 @@ HR
 Write-Host ""
 Write-Host "  Source      : " -NoNewline; Write-Host $SourceDir    -ForegroundColor White
 Write-Host "  Output      : " -NoNewline; Write-Host $OutputDir    -ForegroundColor White
+Write-Host "  Python      : " -NoNewline; Write-Host $Python       -ForegroundColor White
 Write-Host "  Start step  : " -NoNewline; Write-Host $StartStep    -ForegroundColor White
 Write-Host "  Max retries : " -NoNewline; Write-Host $MaxRetries   -ForegroundColor White
 Write-Host "  Log level   : " -NoNewline; Write-Host $LogLevel     -ForegroundColor White
@@ -362,6 +390,11 @@ while (-not $launchDone) {
 
 Write-Host ""
 Set-Location $ScriptDir
+
+if (-not $Python) {
+    Write-Host "  [ERROR] Python not found. Please install Python or activate your conda/venv environment." -ForegroundColor Red
+    exit 1
+}
 
 $env:OLLAMA_EMBED_MODEL = $OllamaEmbedModel
 $env:OLLAMA_BASE_URL    = $OllamaBaseUrl

@@ -77,14 +77,14 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
     if name == "run_pytest_collect":
         # Use py_compile for syntax-only check — no imports executed, so missing
         # application modules don't cause a false ImportError at this stage.
-        result = _run([sys.executable, "-m", "py_compile", args["test_file"]])
+        result = await _run([sys.executable, "-m", "py_compile", args["test_file"]])
         if result["returncode"] == 0:
             result["stdout"] = f"Syntax OK: {args['test_file']}"
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     if name == "run_pytest":
         flags = ["-v"] if args.get("verbose", True) else ["-q"]
-        result = _run([sys.executable, "-m", "pytest"] + flags + [args["test_file"]])
+        result = await _run([sys.executable, "-m", "pytest"] + flags + [args["test_file"]], timeout=120.0)
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     if name == "run_mypy":
@@ -94,23 +94,30 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
                 "stdout": "mypy skipped (not installed)",
                 "stderr": "",
             }))]
-        result = _run([sys.executable, "-m", "mypy", "--strict", args["source_file"]])
+        result = await _run([sys.executable, "-m", "mypy", "--strict", args["source_file"]])
         return [types.TextContent(type="text", text=json.dumps(result))]
 
     raise ValueError(f"Unknown tool: {name}")
 
 
-def _run(cmd: list[str]) -> dict:
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
+async def _run(cmd: list[str], timeout: float = 60.0) -> dict:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        stdin=asyncio.subprocess.DEVNULL,
         cwd=str(_working_dir),
     )
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
     return {
         "returncode": proc.returncode,
-        "stdout": proc.stdout,
-        "stderr": proc.stderr,
+        "stdout": stdout_bytes.decode("utf-8", errors="replace"),
+        "stderr": stderr_bytes.decode("utf-8", errors="replace"),
     }
 
 
