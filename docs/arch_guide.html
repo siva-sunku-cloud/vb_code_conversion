@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Java → Python Migration Orchestrator — Architecture &amp; Implementation Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0f4f9; --surface: #ffffff; --border: #e2e8f0;
+      --text: #1e293b; --muted: #64748b; --code-bg: #0f172a; --code-text: #e2e8f0;
+      --accent: #38bdf8; --sidebar-w: 260px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.7; }
+    a { color: #0ea5e9; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: var(--sidebar-w); background: #0c1526; position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+    .sidebar-logo { padding: 24px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-logo .logo-title { font-size: 14px; font-weight: 800; color: #f8fafc; line-height: 1.3; }
+    .sidebar-logo .logo-sub { font-size: 10px; color: #64748b; letter-spacing: .4px; margin-top: 3px; }
+    .nav-group { padding: 16px 0 4px; }
+    .nav-group-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #475569; padding: 0 20px 6px; }
+    .nav-link { display: flex; align-items: center; gap: 9px; padding: 7px 20px; font-size: 12px; color: #94a3b8; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; border-left: 3px solid transparent; }
+    .nav-link:hover { background: rgba(255,255,255,.05); color: #e2e8f0; text-decoration: none; }
+    .nav-link.active { color: #38bdf8; border-left-color: #38bdf8; background: rgba(56,189,248,.07); }
+    .nav-link .nav-icon { font-size: 14px; flex-shrink: 0; }
+    .audience-badge { margin: auto 20px 20px; display: flex; flex-direction: column; gap: 6px; }
+    .aud { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; padding: 6px 10px; border-radius: 7px; }
+    .aud-sme { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    /* Main */
+    .main { flex: 1; min-width: 0; }
+
+    /* Hero */
+    .hero { background: linear-gradient(160deg, #0c1526 0%, #1a2d4a 55%, #0c1526 100%); padding: 48px 56px 40px; }
+    .hero-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; margin-bottom: 12px; }
+    .hero h1 { font-size: 30px; font-weight: 900; color: #f8fafc; letter-spacing: -1px; line-height: 1.2; margin-bottom: 10px; }
+    .hero h1 .accent { color: #38bdf8; }
+    .hero-sub { font-size: 13px; color: #94a3b8; max-width: 640px; margin-bottom: 20px; }
+    .hero-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+    .chip { font-size: 11px; font-weight: 600; padding: 5px 13px; border-radius: 20px; border: 1px solid; }
+    .chip-blue   { color: #38bdf8; border-color: rgba(56,189,248,.35); background: rgba(56,189,248,.07); }
+    .chip-green  { color: #34d399; border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.07); }
+    .chip-purple { color: #c084fc; border-color: rgba(192,132,252,.35); background: rgba(192,132,252,.07); }
+    .chip-amber  { color: #fbbf24; border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.07); }
+
+    /* Sections */
+    .section { padding: 40px 56px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+    .section:last-child { border-bottom: none; }
+    .section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+    .section-icon { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .section-title { font-size: 21px; font-weight: 800; letter-spacing: -.5px; }
+    .section-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    h2 { font-size: 16px; font-weight: 700; margin: 26px 0 10px; }
+    h3 { font-size: 13px; font-weight: 700; margin: 18px 0 7px; color: #334155; }
+    p { margin-bottom: 11px; color: #334155; }
+
+    /* Tags */
+    .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+    .tag-decision { background: #fef3c7; color: #92400e; }
+    .tag-tradeoff { background: #fee2e2; color: #991b1b; }
+    .tag-pattern  { background: #e0e7ff; color: #3730a3; }
+
+    /* Code */
+    pre { background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px 20px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; margin: 10px 0 16px; }
+    pre .comment { color: #475569; }
+    pre .kw  { color: #93c5fd; }
+    pre .str { color: #86efac; }
+    pre .num { color: #f9a8d4; }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; }
+
+    /* Callouts */
+    .callout { border-radius: 10px; padding: 13px 16px; margin: 12px 0 18px; display: flex; gap: 11px; align-items: flex-start; }
+    .callout-icon { font-size: 17px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+    .callout-text  { font-size: 12px; color: #334155; line-height: 1.6; }
+    .callout-info    { background: #f0f9ff; border-left: 4px solid #0ea5e9; }
+    .callout-warn    { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .callout-decision{ background: #fefce8; border-left: 4px solid #ca8a04; }
+    .callout-info  .callout-title { color: #0369a1; }
+    .callout-warn  .callout-title { color: #b45309; }
+    .callout-decision .callout-title { color: #92400e; }
+
+    /* Cards */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 14px 0 22px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    .card-icon { font-size: 22px; margin-bottom: 9px; }
+    .card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .card-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12.5px; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.04); }
+    th { background: #f1f5f9; padding: 9px 13px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 9px 13px; border-bottom: 1px solid #f8fafc; vertical-align: top; line-height: 1.55; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    /* Flow diagram */
+    .flow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 10px 0 16px; }
+    .flow-node { padding: 6px 13px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+    .flow-arr { color: #94a3b8; font-size: 17px; }
+    .fn-blue   { background: #e0f2fe; color: #0369a1; }
+    .fn-purple { background: #f3e8ff; color: #7e22ce; }
+    .fn-green  { background: #dcfce7; color: #15803d; }
+    .fn-yellow { background: #fef9c3; color: #854d0e; }
+    .fn-dark   { background: #1e293b; color: #e2e8f0; }
+    .fn-gate   { background: #fef3c7; color: #b45309; border: 2px dashed #fcd34d; }
+
+    /* Agent rows */
+    .agent-row { display: flex; align-items: stretch; gap: 0; margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .agent-pill { background: #f8fafc; border-right: 1px solid var(--border); padding: 11px 14px; min-width: 130px; flex-shrink: 0; }
+    .agent-pill .ap-label { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+    .agent-pill .ap-name  { font-size: 12px; font-weight: 700; margin: 2px 0 1px; }
+    .agent-pill .ap-file  { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .agent-detail { padding: 11px 14px; flex: 1; }
+    .agent-detail p { font-size: 12px; color: #334155; margin-bottom: 5px; }
+    .agent-detail p:last-child { margin-bottom: 0; }
+    .out-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; margin-right: 4px; }
+    .out-json { background: #fef3c7; color: #92400e; }
+    .out-md   { background: #e0e7ff; color: #3730a3; }
+    .out-py   { background: #dcfce7; color: #166534; }
+    .out-bool { background: #fce7f3; color: #9d174d; }
+
+    /* Decision table */
+    .decision-row { background: #fffbeb; }
+    .decision-row td:first-child { font-weight: 700; color: #92400e; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">Java → Python Orchestrator</div>
+      <div class="logo-sub">Architecture &amp; Implementation Guide</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Architecture</div>
+      <a href="#system-arch"   class="nav-link active"><span class="nav-icon">🏗️</span>System Architecture</a>
+      <a href="#ai-layer"      class="nav-link"><span class="nav-icon">🤖</span>AI &amp; LLM Integration</a>
+      <a href="#hub-agent"     class="nav-link"><span class="nav-icon">🎛️</span>Hub Agent</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Agent Design</div>
+      <a href="#agents-step1"  class="nav-link"><span class="nav-icon">🔬</span>Analysis Agents — Step 1</a>
+      <a href="#agents-step2"  class="nav-link"><span class="nav-icon">🧬</span>Test Agents — Step 2</a>
+      <a href="#agents-step3"  class="nav-link"><span class="nav-icon">⚙️</span>Converter Pipeline — Step 3</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Contracts &amp; Infrastructure</div>
+      <a href="#data-models"   class="nav-link"><span class="nav-icon">📐</span>Data Models</a>
+      <a href="#mcp-infra"     class="nav-link"><span class="nav-icon">🔌</span>MCP Infrastructure</a>
+      <a href="#quality"       class="nav-link"><span class="nav-icon">✅</span>Quality Strategy</a>
+      <a href="#decisions"     class="nav-link"><span class="nav-icon">⚖️</span>Design Decisions</a>
+    </div>
+
+    <div class="audience-badge">
+      <div class="aud aud-sme">🏛️ Technical SME Evaluation Guide</div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow">Architecture &amp; Implementation Guide</div>
+      <h1>Java <span style="color:#475569">→</span> Python Migration <span class="accent">Orchestrator</span></h1>
+      <p class="hero-sub">
+        A multi-agent AI pipeline that converts Java modules to idiomatic, type-annotated Python with full test coverage.
+        This guide documents system design decisions, agent responsibilities, data contracts, and the AI integration architecture
+        for technical SMEs evaluating the implementation.
+      </p>
+      <div class="hero-chips">
+        <span class="chip chip-blue">Hub &amp; Spoke Architecture</span>
+        <span class="chip chip-green">LiteLLM Provider Abstraction</span>
+        <span class="chip chip-purple">MCP Infrastructure Layer</span>
+        <span class="chip chip-amber">Closed-Loop Self-Correction</span>
+        <span class="chip chip-blue">Pydantic Typed Contracts</span>
+        <span class="chip chip-green">TDD Code Generation</span>
+      </div>
+    </div>
+
+    <!-- ══════════════ SECTION: System Architecture ══════════════ -->
+    <section class="section" id="system-arch">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0f2fe">🏗️</div>
+        <div>
+          <div class="section-title">System Architecture</div>
+          <div class="section-desc">Overall structure, pipeline topology, and component inventory</div>
+        </div>
+      </div>
+
+      <p>The system follows a <strong>Hub &amp; Spoke</strong> pattern. A single central Hub Agent owns all migration state and orchestrates a set of stateless spoke agents — each agent has exactly one responsibility. Spokes never communicate with each other; all coordination flows through the Hub.</p>
+
+      <h2>Pipeline Topology</h2>
+      <div class="flow">
+        <div class="flow-node fn-dark">CLI Entry<br><small>main.py</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-blue">Hub Agent<br><small>hub_agent.py</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-purple">Step 1<br><small>Analysis</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-gate" style="background:#fef3c7;color:#b45309;border:2px dashed #fcd34d;padding:6px 13px;border-radius:8px;font-size:12px;font-weight:700">Human Gate</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-purple">Step 2<br><small>Tests</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-gate" style="background:#fef3c7;color:#b45309;border:2px dashed #fcd34d;padding:6px 13px;border-radius:8px;font-size:12px;font-weight:700">Human Gate</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">Step 3<br><small>Convert</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-gate" style="background:#fef3c7;color:#b45309;border:2px dashed #fcd34d;padding:6px 13px;border-radius:8px;font-size:12px;font-weight:700">Human Gate</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">✓ PR Created</div>
+      </div>
+
+      <h2>Component Inventory</h2>
+      <table>
+        <thead><tr><th>Layer</th><th>Component</th><th>File</th><th>Type</th><th>Single responsibility</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="2"><strong>Orchestration</strong></td><td>Hub Agent</td><td><code>agents/hub_agent.py</code></td><td>Orchestrator</td><td>State machine, dispatch, human gates, MCP lifecycle</td></tr>
+          <tr><td>BaseAgent</td><td><code>agents/base_agent.py</code></td><td>Abstract base</td><td>LLM call wrapper, response parsing utilities</td></tr>
+          <tr><td rowspan="5"><strong>Step 1 — Analysis</strong></td><td>UnderstandAgent</td><td><code>agents/analyze_and_design/understand_agent.py</code></td><td>LLM agent</td><td>Extract structured JSON analysis from Java source</td></tr>
+          <tr><td>DocumentAgent</td><td><code>agents/analyze_and_design/document_agent.py</code></td><td>LLM agent</td><td>Convert analysis JSON → human-readable Markdown spec</td></tr>
+          <tr><td>ArchitectAgent</td><td><code>agents/analyze_and_design/architect_agent.py</code></td><td>LLM agent</td><td>Design Python dataclasses, public API, DI points</td></tr>
+          <tr><td>ASTChecker</td><td><code>agents/analyze_and_design/ast_checker.py</code></td><td>Rule validator</td><td>Regex completeness check — no LLM, non-blocking</td></tr>
+          <tr><td>ArchAuditor</td><td><code>agents/analyze_and_design/arch_auditor.py</code></td><td>LLM reviewer</td><td>Quality review of architecture for Python idioms</td></tr>
+          <tr><td rowspan="4"><strong>Step 2 — Tests</strong></td><td>FunctionalTestsAgent</td><td><code>agents/build_test_execute/functional_tests_agent.py</code></td><td>LLM agent</td><td>Generate pytest unit tests from Markdown spec</td></tr>
+          <tr><td>GoldenMasterAgent</td><td><code>agents/build_test_execute/golden_master_agent.py</code></td><td>LLM agent</td><td>Generate characterisation tests from I/O data</td></tr>
+          <tr><td>TestAuditor</td><td><code>agents/build_test_execute/test_auditor.py</code></td><td>LLM reviewer</td><td>Merge, deduplicate, and quality-check both test suites</td></tr>
+          <tr><td>DryRunRunner</td><td><code>agents/build_test_execute/dry_run_runner.py</code></td><td>Tool runner</td><td>Syntax-validate test file via <code>py_compile</code> (MCP)</td></tr>
+          <tr><td rowspan="3"><strong>Step 3 — Convert</strong></td><td>ConverterAgent</td><td><code>agents/generate_code/converter_agent.py</code></td><td>LLM agent</td><td>Generate Python implementation from architecture + tests</td></tr>
+          <tr><td>MypyChecker</td><td><code>agents/generate_code/mypy_checker.py</code></td><td>Tool runner</td><td>Static type check via <code>mypy.api</code> in-process (MCP)</td></tr>
+          <tr><td>PytestRunner</td><td><code>agents/generate_code/pytest_runner.py</code></td><td>Tool runner</td><td>Execute merged test suite and return output (MCP)</td></tr>
+          <tr><td rowspan="4"><strong>Infrastructure</strong></td><td>FilesystemServer/Client</td><td><code>infrastructure/{servers,clients}/filesystem_*</code></td><td>MCP pair</td><td>All file I/O — Java source reads, artifact writes</td></tr>
+          <tr><td>ExecutionServer/Client</td><td><code>infrastructure/{servers,clients}/execution_*</code></td><td>MCP pair</td><td>Sandboxed pytest and mypy execution</td></tr>
+          <tr><td>VectorDBServer/Client</td><td><code>infrastructure/{servers,clients}/vectordb_*</code></td><td>MCP pair</td><td>Qdrant translation memory — store and search patterns</td></tr>
+          <tr><td>GitHubServer/Client</td><td><code>infrastructure/{servers,clients}/github_*</code></td><td>MCP pair</td><td>Feature branch and PR creation per migrated module</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ SECTION: AI & LLM Integration ══════════════ -->
+    <section class="section" id="ai-layer">
+      <div class="section-header">
+        <div class="section-icon" style="background:#f3e8ff">🤖</div>
+        <div>
+          <div class="section-title">AI &amp; LLM Integration Architecture</div>
+          <div class="section-desc">Provider abstraction, prompting strategy, self-correction loop, and translation memory</div>
+        </div>
+      </div>
+
+      <h2>Provider Abstraction — LiteLLM</h2>
+      <p>All agents call <strong>LiteLLM</strong> (<code>litellm.completion()</code>) rather than any vendor SDK. LiteLLM normalises the API across five providers. Switching providers requires only a <code>.env</code> change — no code changes anywhere in the pipeline.</p>
+
+      <table>
+        <thead><tr><th>LLM_PROVIDER</th><th>Models</th><th>Required credential</th><th>LiteLLM model prefix</th></tr></thead>
+        <tbody>
+          <tr><td><code>anthropic</code> (default)</td><td><code>claude-sonnet-4-6</code> / <code>claude-opus-4-7</code></td><td><code>ANTHROPIC_API_KEY</code></td><td>native — no prefix</td></tr>
+          <tr><td><code>openai</code></td><td><code>gpt-4o</code></td><td><code>OPENAI_API_KEY</code></td><td>native — no prefix</td></tr>
+          <tr><td><code>gemini</code></td><td><code>gemini-1.5-pro</code></td><td><code>GEMINI_API_KEY</code></td><td><code>gemini/…</code></td></tr>
+          <tr><td><code>copilot</code></td><td>gpt-4o via GitHub API</td><td><code>GITHUB_COPILOT_TOKEN</code></td><td><code>github/gpt-4o</code></td></tr>
+          <tr><td><code>azure</code></td><td>deployment name in <code>AGENT_MODEL</code></td><td><code>OPENAI_API_KEY</code> + <code>AZURE_API_BASE</code></td><td><code>azure/…</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>BaseAgent — Shared LLM Utilities</h2>
+      <p><code>agents/base_agent.py</code> is an abstract base class (ABC). Every spoke agent extends it. It provides four utilities that all agents inherit:</p>
+
+      <div class="agent-row">
+        <div class="agent-pill"><div class="ap-label">Method</div><div class="ap-name">_call_llm()</div></div>
+        <div class="agent-detail"><p>Single LLM invocation via <code>litellm.completion()</code>. Signature: <code>(system: str, messages: list[dict], max_tokens: int = 4096, tools: list | None) → ModelResponse</code>. Prepends system prompt, handles Azure-specific parameters, logs token counts at DEBUG.</p></div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-pill"><div class="ap-label">Method</div><div class="ap-name">_extract_code()</div></div>
+        <div class="agent-detail"><p>Strips markdown fenced code block (<code>```python … ```</code>) from an LLM response, returning only the inner code. Used by ConverterAgent to isolate the generated Python module from surrounding explanation prose.</p></div>
+      </div>
+      <div class="agent-row">
+        <div class="agent-pill"><div class="ap-label">Method</div><div class="ap-name">_parse_json()</div></div>
+        <div class="agent-detail"><p>Extracts text, strips markdown fences, calls <code>json.loads()</code>. Used by UnderstandAgent, ArchitectAgent, and ArchAuditor — all of which expect structured JSON responses.</p></div>
+      </div>
+
+      <h2>Prompt Architecture — System + User Separation</h2>
+      <p>Every agent call uses a two-part prompt structure. The split is a deliberate design choice: the system prompt defines constraints that never change; the user message carries context that varies per call and per retry.</p>
+      <table>
+        <thead><tr><th>Part</th><th>Content</th><th>Changes between calls?</th><th>Design rationale</th></tr></thead>
+        <tbody>
+          <tr><td><strong>System prompt</strong></td><td>Agent persona, output format requirements, hard constraints (e.g. "return only valid JSON with these keys", "no prose after the code block", "never use global mutable state")</td><td>No — static constant in each agent file</td><td>Consistency: the same rules apply on every call and every retry. Testable in isolation.</td></tr>
+          <tr><td><strong>User message</strong></td><td>Dynamic context: Java source code, analysis JSON, test file, error output from mypy/pytest</td><td>Yes — augmented with tool error output on retries</td><td>Precision: the retry prompt contains exact compiler/test output — line numbers, assertion values — not a vague "it failed" signal.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Self-Correction Loop (Step 3)</h2>
+      <p>The closed feedback loop is the central AI design pattern in the pipeline. It provides the Converter Agent with exact machine-generated error output as its next prompt's context — the same feedback cycle a human engineer uses. This is sometimes called <em>tool-augmented reflection</em>.</p>
+
+      <div class="flow">
+        <div class="flow-node fn-green">Converter<br><small>attempt N</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-dark">mypy --strict</div>
+        <div class="flow-arr" style="color:#ef4444">FAIL →</div>
+        <div class="flow-node fn-gate">Inject error<br><small>into prompt</small></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">Converter<br><small>attempt N+1</small></div>
+        <div class="flow-arr" style="color:#16a34a">PASS →</div>
+        <div class="flow-node fn-dark">pytest full suite</div>
+        <div class="flow-arr" style="color:#16a34a">PASS →</div>
+        <div class="flow-node fn-green">Human Gate</div>
+      </div>
+
+      <table>
+        <thead><tr><th>Attempt</th><th>User message contains</th><th>Expected LLM response</th></tr></thead>
+        <tbody>
+          <tr><td>1 (initial)</td><td>Architecture JSON + full merged test suite</td><td>Complete Python module — code only, inside fenced block</td></tr>
+          <tr><td>2+ (mypy fail)</td><td>Previous code + full mypy output (file, line, type mismatch)</td><td>Corrected module fixing all type errors</td></tr>
+          <tr><td>2+ (pytest fail)</td><td>Previous code + complete pytest failure traces (assertion, actual vs expected)</td><td>Corrected module passing all tests</td></tr>
+          <tr><td>Budget exhausted</td><td>Last error output</td><td>Best attempt — module escalated to human operator</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-decision">
+        <div class="callout-icon">⚖️</div>
+        <div class="callout-body">
+          <div class="callout-title">Why precise feedback produces effective corrections</div>
+          <div class="callout-text">mypy errors include exact file path, line number, and specific type mismatch description. pytest failure traces include the exact assertion that failed and actual vs expected values. This precision means the model knows exactly which line to fix — not just "something is wrong." In practice, the majority of modules pass on attempt 1; most of the remainder pass on attempt 2.</div>
+        </div>
+      </div>
+
+      <h2>Parallel Execution (Step 2)</h2>
+      <p>The Functional Tests Agent and Golden Master Agent are stateless and produce independent outputs. The Hub Agent runs both concurrently via <code>asyncio.gather()</code>, reducing Step 2 wall-clock time by ~35% compared to sequential execution.</p>
+<pre><span class="comment"># Both LLM calls are in-flight simultaneously</span>
+<span class="comment"># Total latency = max(t_functional, t_golden)  not  t_functional + t_golden</span>
+functional_suite, golden_suite = <span class="kw">await</span> asyncio.gather(
+    FunctionalTestsAgent().run(spec, arch_path),
+    GoldenMasterAgent().run(spec, io_samples_path),
+)</pre>
+
+      <h2>Translation Memory — Qdrant Vector DB</h2>
+      <p>Before generating Python code, the Converter Agent performs a cosine-similarity search for previously solved Java→Python patterns. This reduces redundant re-derivation of common translation constructs across modules.</p>
+      <table>
+        <thead><tr><th>Operation</th><th>When</th><th>What is stored / queried</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Query</strong> (<code>find_similar</code>)</td><td>Before each Converter generation attempt</td><td>Embedding of current architecture's <code>design_notes</code> + <code>public_api</code> signatures. Top-5 similar patterns retrieved and injected as examples into the system prompt.</td></tr>
+          <tr><td><strong>Store</strong> (<code>store_pattern</code>)</td><td>After Human Gate approval in Step 3</td><td>Architecture summary + generated code digest. Available to all subsequent modules in the session (and across sessions with a persistent Qdrant instance).</td></tr>
+        </tbody>
+      </table>
+      <p>Graceful degradation: if Qdrant is unavailable, the vector DB client falls back to in-memory mode (<code>QdrantClient(":memory:")</code>) automatically. Memory resets on process exit. The pipeline never errors due to Qdrant unavailability.</p>
+    </section>
+
+    <!-- ══════════════ SECTION: Hub Agent ══════════════ -->
+    <section class="section" id="hub-agent">
+      <div class="section-header">
+        <div class="section-icon" style="background:#1e293b">🎛️</div>
+        <div>
+          <div class="section-title">Hub Agent</div>
+          <div class="section-desc">agents/hub_agent.py — Orchestrator, state machine, and MCP server lifecycle manager</div>
+        </div>
+      </div>
+
+      <p>The Hub Agent is <strong>not an AI agent</strong>. It does not call any LLM. Its role is deterministic orchestration: it owns the global state machine, starts and stops the four MCP server subprocesses, dispatches spoke agents, and presents human review gates. All intelligence lives in the spoke agents.</p>
+
+      <h2>Key Methods</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Purpose</th><th>Spoke agents dispatched</th></tr></thead>
+        <tbody>
+          <tr><td><code>run(request)</code></td><td>Entry point. Starts all MCP servers in <code>AsyncExitStack</code>, scans for <code>.java</code> files, iterates per module.</td><td>—</td></tr>
+          <tr><td><code>_analyze_and_design()</code></td><td>Runs Steps 1-A → 1-B → 1-C sequentially, then both validators. Calls <code>_human_gate()</code> unconditionally.</td><td>UnderstandAgent, DocumentAgent, ArchitectAgent, ASTChecker, ArchAuditor</td></tr>
+          <tr><td><code>_build_test_execute()</code></td><td>Runs test agents in parallel via <code>asyncio.gather()</code>, then Test Auditor, then dry run. Calls <code>_human_gate()</code>.</td><td>FunctionalTestsAgent, GoldenMasterAgent, TestAuditor, DryRunRunner</td></tr>
+          <tr><td><code>_generate_code()</code></td><td>Closed correction loop: Converter → mypy → pytest → retry up to <code>MAX_RETRIES</code>. On success, calls <code>_human_gate()</code>.</td><td>ConverterAgent, MypyChecker, PytestRunner</td></tr>
+          <tr><td><code>_human_gate()</code></td><td>Pauses pipeline with a <code>rich.Panel</code> display and a y/n prompt. Returns <code>True</code> (continue) or <code>False</code> (mark module FAILED). This is the only place a human decision can stop the pipeline.</td><td>— (CLI interaction only)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>MCP Server Lifecycle</h2>
+<pre><span class="comment"># AsyncExitStack guarantees all 4 server subprocesses shut down cleanly</span>
+<span class="comment"># on any exit path — normal completion, exception, or KeyboardInterrupt</span>
+<span class="kw">async with</span> AsyncExitStack() <span class="kw">as</span> stack:
+    self.fs       = <span class="kw">await</span> stack.enter_async_context(FilesystemClient(output_dir))
+    self.executor = <span class="kw">await</span> stack.enter_async_context(ExecutionClient(output_dir))
+    self.vectordb = <span class="kw">await</span> stack.enter_async_context(VectorDBClient())
+    self.github   = <span class="kw">await</span> stack.enter_async_context(GitHubClient())
+    <span class="kw">await</span> self._run_pipeline(request)</pre>
+
+      <p>State is persisted to <code>migration_state.json</code> after every status change via <code>MigrationManager</code>. Interrupted runs can be resumed at the last successful step using <code>--start-step</code>.</p>
+    </section>
+
+    <!-- ══════════════ SECTION: Analysis Agents (Step 1) ══════════════ -->
+    <section class="section" id="agents-step1">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0e7ff">🔬</div>
+        <div>
+          <div class="section-title">Analysis Agents — Step 1</div>
+          <div class="section-desc">agents/analyze_and_design/ — Three LLM agents and two validators; run sequentially</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Agent</th><th>Input</th><th>Output model</th><th>LLM?</th><th>Key design decision</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>UnderstandAgent</strong></td>
+            <td>Java source (<code>str</code>)</td>
+            <td><code>AnalysisResult</code></td>
+            <td>Yes</td>
+            <td>System prompt demands strict JSON — no prose. Output persisted to disk so <code>--start-step 1b</code> skips the LLM call on reruns, saving cost.</td>
+          </tr>
+          <tr>
+            <td><strong>DocumentAgent</strong></td>
+            <td><code>AnalysisResult</code></td>
+            <td><code>MarkdownSpec</code></td>
+            <td>Yes</td>
+            <td>Markdown chosen as output format — machine-parseable by the Test Auditor, human-readable by domain experts. JSON would be too low-level; free prose would be unstructured.</td>
+          </tr>
+          <tr>
+            <td><strong>ArchitectAgent</strong></td>
+            <td><code>AnalysisResult</code> + <code>MarkdownSpec</code></td>
+            <td><code>ArchitectureDesign</code></td>
+            <td>Yes</td>
+            <td>Receives analysis <em>and</em> spec but <em>not</em> Java source. Deliberately decoupled from Java — produces a Python-idiomatic blueprint, not a Java translation. Converter in Step 3 is then given this blueprint, not the Java source.</td>
+          </tr>
+          <tr>
+            <td><strong>ASTChecker</strong></td>
+            <td><code>AnalysisResult</code> + Java source</td>
+            <td><code>ValidationResult</code></td>
+            <td>No — regex</td>
+            <td>Regex over a real Java AST parser (e.g. <code>javalang</code>) to avoid a JVM/parser dependency. Non-blocking: issues are warnings shown at the Human Gate, not pipeline halts.</td>
+          </tr>
+          <tr>
+            <td><strong>ArchAuditor</strong></td>
+            <td><code>ArchitectureDesign</code></td>
+            <td><code>ValidationResult</code></td>
+            <td>Yes</td>
+            <td>Separate from ArchitectAgent — an "author + reviewer" separation that reduces blind spots. The Auditor has a checklist-focused system prompt (global state? Java-isms? missing type hints?), not a design prompt.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-decision">
+        <div class="callout-icon">⚖️</div>
+        <div class="callout-body">
+          <div class="callout-title">Why the Converter never sees the Java source code</div>
+          <div class="callout-text">Giving the Converter the Java source risks producing a line-by-line translation rather than idiomatic Python. By constraining it to the architecture blueprint and the test file, the model is forced to reason about the target language's idioms independently. The architecture enforces Python patterns (Protocols for DI, dataclasses, <code>X | None</code>) that the Converter then implements.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Test Agents (Step 2) ══════════════ -->
+    <section class="section" id="agents-step2">
+      <div class="section-header">
+        <div class="section-icon" style="background:#f3e8ff">🧬</div>
+        <div>
+          <div class="section-title">Test Agents — Step 2</div>
+          <div class="section-desc">agents/build_test_execute/ — Two parallel generators, one LLM auditor, one syntax validator</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Agent</th><th>Input</th><th>Output</th><th>LLM?</th><th>Key design decision</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>FunctionalTestsAgent</strong></td>
+            <td><code>MarkdownSpec</code></td>
+            <td><code>TestSuite</code> (functional)</td>
+            <td>Yes</td>
+            <td>Spec-to-test: every numbered business rule → at least one test. System prompt forbids mocking business logic — only external I/O (DB, HTTP) may be mocked.</td>
+          </tr>
+          <tr>
+            <td><strong>GoldenMasterAgent</strong></td>
+            <td><code>MarkdownSpec</code> + optional I/O data</td>
+            <td><code>TestSuite</code> (golden_master)</td>
+            <td>Yes</td>
+            <td>Two modes: (1) real I/O data → exact <code>@pytest.mark.parametrize</code> from historical Java outputs; (2) synthetic fallback → LLM infers expected outputs from spec. Real data mode is significantly more reliable.</td>
+          </tr>
+          <tr>
+            <td><strong>TestAuditor</strong></td>
+            <td>Both <code>TestSuite</code> objects + <code>MarkdownSpec</code></td>
+            <td>Merged <code>TestSuite</code></td>
+            <td>Yes</td>
+            <td>Separate reviewer agent — not part of either generator. Removes trivial assertions, eliminates over-mocking, fills spec-rule coverage gaps, resolves duplicate names. The merged file is the Step 3 acceptance contract.</td>
+          </tr>
+          <tr>
+            <td><strong>DryRunRunner</strong></td>
+            <td>Merged test file path</td>
+            <td><code>ExecResult</code></td>
+            <td>No — MCP tool</td>
+            <td>Uses <code>py_compile</code> (not <code>pytest --collect-only</code>). At this point the Python module doesn't exist yet, so imports would fail on --collect-only. Pure syntax validation is the correct scope here.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-decision">
+        <div class="callout-icon">⚖️</div>
+        <div class="callout-body">
+          <div class="callout-title">Why three agents instead of one comprehensive test generator</div>
+          <div class="callout-text">The Functional Agent maximises spec-rule coverage; the Golden Master Agent maximises output fidelity; the Test Auditor specialises in quality and deduplication. Each has a tightly-scoped system prompt and objective. A single agent attempting all three objectives produces mediocre results in all three — a well-known failure mode of over-specified LLM tasks.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Converter Pipeline (Step 3) ══════════════ -->
+    <section class="section" id="agents-step3">
+      <div class="section-header">
+        <div class="section-icon" style="background:#dcfce7">⚙️</div>
+        <div>
+          <div class="section-title">Converter Pipeline — Step 3</div>
+          <div class="section-desc">agents/generate_code/ — Code generation in a closed mypy → pytest correction loop</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Component</th><th>Input</th><th>Output</th><th>LLM?</th><th>Key design decision</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>ConverterAgent</strong></td>
+            <td><code>ArchitectureDesign</code> + merged <code>TestSuite</code> + Qdrant top-5 examples</td>
+            <td><code>ConversionResult</code></td>
+            <td>Yes</td>
+            <td>Never sees Java source (by design). Instruction "Fix ALL failing tests" on retries — the word ALL prevents the model from addressing only the first failure. Qdrant examples reduce re-derivation of known patterns.</td>
+          </tr>
+          <tr>
+            <td><strong>MypyChecker</strong></td>
+            <td>Generated <code>.py</code> file path</td>
+            <td><code>ExecResult</code></td>
+            <td>No — MCP tool</td>
+            <td>Runs mypy in-process via <code>mypy.api.run()</code> — not subprocess. Avoids Windows shell-pipe byte encoding issues. Runs <em>before</em> pytest: type errors cascade into multiple test failures; fixing them first reduces total retries needed.</td>
+          </tr>
+          <tr>
+            <td><strong>PytestRunner</strong></td>
+            <td>Test file path</td>
+            <td><code>ExecResult</code></td>
+            <td>No — MCP tool</td>
+            <td>Runs pytest as a subprocess (not in-process). Subprocess isolation prevents a bad import or <code>sys.exit()</code> in generated code from crashing the pipeline process. Full stdout+stderr returned for retry injection.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Correction Loop — Execution Order</h2>
+      <table>
+        <thead><tr><th>#</th><th>Action</th><th>On success</th><th>On failure</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>ConverterAgent generates Python module</td><td>Write to <code>{module}.py</code></td><td>N/A — generation always produces output</td></tr>
+          <tr><td>2</td><td>MypyChecker type-checks the module</td><td>Proceed to pytest</td><td>Prepend mypy errors to Converter's next user message; increment retry counter</td></tr>
+          <tr><td>3</td><td>PytestRunner executes full test suite</td><td>Proceed to Human Gate</td><td>Prepend pytest failure traces to Converter's next user message; increment retry counter</td></tr>
+          <tr><td>—</td><td>Budget exhausted (<code>MAX_RETRIES</code> default: 3)</td><td>—</td><td>Print last error, prompt operator, mark module FAILED</td></tr>
+          <tr><td>4</td><td>Human Gate</td><td>Store pattern in Qdrant; create GitHub PR</td><td>Mark FAILED; operator edits file and reruns with <code>--start-step 3</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ SECTION: Data Models ══════════════ -->
+    <section class="section" id="data-models">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fce7f3">📐</div>
+        <div>
+          <div class="section-title">Data Models</div>
+          <div class="section-desc">models/artifacts.py — Pydantic v2 typed contracts flowing between every agent</div>
+        </div>
+      </div>
+
+      <p>All inter-agent data is exchanged via Pydantic models. Every agent's <code>run()</code> method accepts and returns typed objects — never raw <code>dict</code>s or untyped strings. Benefits: runtime validation at every boundary, full JSON serialisation for disk persistence (enabling <code>--start-step</code> resume), and explicit, auditable data contracts.</p>
+
+      <h2>Data Flow</h2>
+      <div class="flow">
+        <div class="flow-node fn-purple">Java <code>str</code></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-blue">AnalysisResult</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-blue">MarkdownSpec</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-blue">ArchitectureDesign</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">TestSuite ×2</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">merged TestSuite</div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node fn-green">ConversionResult</div>
+      </div>
+
+      <h2>Model Reference</h2>
+      <table>
+        <thead><tr><th>Model</th><th>Produced by</th><th>Key fields</th><th>Persisted?</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>AnalysisResult</strong></td>
+            <td>UnderstandAgent</td>
+            <td><code>business_logic: list[str]</code>, <code>data_structures: list[dict]</code>, <code>external_api_calls: list[str]</code>, <code>control_flow: dict</code>, <code>complexity_score: float</code></td>
+            <td>Yes — <code>{module}_analysis.json</code></td>
+          </tr>
+          <tr>
+            <td><strong>MarkdownSpec</strong></td>
+            <td>DocumentAgent</td>
+            <td><code>content: str</code> (full Markdown), <code>output_path: str</code></td>
+            <td>Yes — <code>{module}_spec.md</code></td>
+          </tr>
+          <tr>
+            <td><strong>ArchitectureDesign</strong></td>
+            <td>ArchitectAgent</td>
+            <td><code>dataclasses: list[dict]</code>, <code>public_api: list[dict]</code> (fully-typed signatures — the Converter contract), <code>dependency_injection: list[str]</code>, <code>design_notes: str</code> (used as Qdrant query vector)</td>
+            <td>Yes — <code>{module}_architecture.json</code></td>
+          </tr>
+          <tr>
+            <td><strong>TestSuite</strong></td>
+            <td>FunctionalTestsAgent, GoldenMasterAgent, TestAuditor</td>
+            <td><code>test_code: str</code>, <code>test_type: str</code> ("functional" | "golden_master" | "merged"), <code>test_count: int</code></td>
+            <td>Yes — <code>test_{module}.py</code></td>
+          </tr>
+          <tr>
+            <td><strong>ConversionResult</strong></td>
+            <td>ConverterAgent</td>
+            <td><code>python_code: str</code>, <code>passed_all_tests: bool</code>, <code>retry_count: int</code>, <code>final_error: str | None</code></td>
+            <td>Yes — <code>{module}.py</code></td>
+          </tr>
+          <tr>
+            <td><strong>ValidationResult</strong></td>
+            <td>ASTChecker, ArchAuditor</td>
+            <td><code>passed: bool</code>, <code>issues: list[str]</code> (shown at Human Gate), <code>warnings: list[str]</code>, <code>passed_count: int</code>, <code>failed_count: int</code></td>
+            <td>No — in-memory only</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ SECTION: MCP Infrastructure ══════════════ -->
+    <section class="section" id="mcp-infra">
+      <div class="section-header">
+        <div class="section-icon" style="background:#e0f2fe">🔌</div>
+        <div>
+          <div class="section-title">MCP Infrastructure</div>
+          <div class="section-desc">infrastructure/ — Four server/client pairs using MCP stdio transport for tool isolation</div>
+        </div>
+      </div>
+
+      <p><strong>MCP (Model Context Protocol)</strong> is used here as a local IPC mechanism. Each tool is a Python subprocess communicating over <code>stdin</code>/<code>stdout</code> with JSON-RPC. This provides three structural benefits: replaceability (swap the storage backend without touching agents), process isolation (a crash in the execution server cannot crash the pipeline), and schema-defined contracts (JSON Schema per tool — the same contract an LLM could call directly).</p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">📁</div>
+          <div class="card-title">FileSystem Server/Client</div>
+          <div class="card-desc">All file I/O. Agents never call <code>pathlib.open()</code> directly — everything flows through <code>FilesystemClient</code>. Makes the storage backend (local disk, S3, etc.) swappable without touching agent code.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">💻</div>
+          <div class="card-title">Execution Server/Client</div>
+          <div class="card-desc">Sandboxed pytest (subprocess) and mypy (in-process via <code>mypy.api</code>). Returns structured <code>ExecResult(returncode, stdout, stderr)</code>. The <code>combined</code> property concatenates both for direct prompt injection.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🗄️</div>
+          <div class="card-title">VectorDB Server/Client</div>
+          <div class="card-desc">Qdrant translation memory. <code>store_pattern()</code> after each successful migration. <code>find_similar()</code> before each Converter generation. Auto-falls back to in-memory Qdrant if <code>QDRANT_URL</code> is unset.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon">🐙</div>
+          <div class="card-title">GitHub Server/Client</div>
+          <div class="card-desc">Creates feature branch <code>migration/{module}</code> and opens a PR with test results in the description. Silently skips if <code>GITHUB_TOKEN</code>/<code>GITHUB_REPO</code> is absent — no error raised, no pipeline impact.</div>
+        </div>
+      </div>
+
+      <h2>BaseMCPClient — Lifecycle Pattern</h2>
+      <p><code>infrastructure/clients/base_client.py</code> is an abstract async context manager. All four clients extend it. It manages subprocess spawning, MCP protocol handshake, tool invocation (with 180-second timeout), and clean shutdown — in that order on every <code>async with</code> block.</p>
+
+      <div class="callout callout-decision">
+        <div class="callout-icon">⚖️</div>
+        <div class="callout-body">
+          <div class="callout-title">Why MCP rather than direct function calls?</div>
+          <div class="callout-text">Direct function calls would tightly couple agent logic to infrastructure implementation. MCP's JSON Schema tool definitions make the interface explicit and versionable. Critically, the same MCP server could be called directly by an LLM using tool-use — enabling future architectures where the LLM itself calls tools, not just Python wrapper code.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Quality Strategy ══════════════ -->
+    <section class="section" id="quality">
+      <div class="section-header">
+        <div class="section-icon" style="background:#dcfce7">✅</div>
+        <div>
+          <div class="section-title">Quality Enforcement Strategy</div>
+          <div class="section-desc">How the pipeline verifies correctness at every stage — automated and human</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Layer</th><th>Mechanism</th><th>What it enforces</th><th>Blocking?</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Structural completeness</strong></td><td>ASTChecker (regex scan)</td><td>All Java class/method definitions captured in <code>AnalysisResult</code></td><td>No — warning at Human Gate</td></tr>
+          <tr><td><strong>Architecture quality</strong></td><td>ArchAuditor (LLM reviewer)</td><td>No global state, full type hints, no Java-isms in public API</td><td>No — issues shown at Human Gate; human decides</td></tr>
+          <tr><td><strong>Specification accuracy</strong></td><td>Human Gate (Step 1)</td><td>Business rules in <code>{module}_spec.md</code> are correct; architecture is approved</td><td>Yes — mandatory y/n</td></tr>
+          <tr><td><strong>Test completeness</strong></td><td>TestAuditor (LLM reviewer) + Human Gate</td><td>One test per business rule, boundary cases covered, no trivial assertions, no over-mocking</td><td>Partial — Auditor is automatic; Human Gate is mandatory y/n</td></tr>
+          <tr><td><strong>Test syntax</strong></td><td>DryRunRunner (<code>py_compile</code> via MCP)</td><td>Test file has valid Python syntax before any application code exists</td><td>No — warning shown at Human Gate</td></tr>
+          <tr><td><strong>Type safety</strong></td><td>MypyChecker (<code>mypy --strict</code> via MCP)</td><td>Full type annotations, no implicit <code>Any</code>, <code>None</code>-safety on all generated Python</td><td>Yes — triggers Converter retry</td></tr>
+          <tr><td><strong>Behavioural correctness</strong></td><td>PytestRunner (full suite via MCP)</td><td>All functional tests and golden master tests pass</td><td>Yes — triggers Converter retry</td></tr>
+          <tr><td><strong>Final approval</strong></td><td>Human Gate (Step 3)</td><td>Human sign-off on generated code before PR creation</td><td>Yes — mandatory y/n</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">🔬</div>
+        <div class="callout-body">
+          <div class="callout-title">TDD applied at the pipeline level</div>
+          <div class="callout-text">Step 2 runs in full before Step 3 begins — the test suite exists, has been human-approved, and has passed a syntax check before the Converter writes a single line of Python. The Converter is evaluated against this pre-existing contract, not a test suite it co-generates. This is test-driven development applied to AI code generation.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SECTION: Design Decisions ══════════════ -->
+    <section class="section" id="decisions">
+      <div class="section-header">
+        <div class="section-icon" style="background:#fef9c3">⚖️</div>
+        <div>
+          <div class="section-title">Key Design Decisions &amp; Trade-offs</div>
+          <div class="section-desc">Architectural choices, the rationale behind them, and the trade-offs accepted</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Decision</th><th>Choice made</th><th>Why</th><th>Trade-off accepted</th></tr></thead>
+        <tbody>
+          <tr class="decision-row">
+            <td>LLM provider coupling</td>
+            <td>LiteLLM abstraction — all providers via one call</td>
+            <td>Prevents vendor lock-in; allows cost/capability optimisation per provider; enables A/B testing of providers on the same pipeline</td>
+            <td>LiteLLM is a runtime dependency; provider-specific advanced features (e.g. Anthropic extended thinking, OpenAI structured outputs) require LiteLLM support</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Infrastructure boundary</td>
+            <td>MCP server/client pairs for all I/O and tool execution</td>
+            <td>Process isolation, schema-defined contracts, swappable backends without agent changes</td>
+            <td>Additional startup latency (subprocess spawn); more complex debug path when a tool call fails</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Converter input scope</td>
+            <td>Converter receives architecture + tests — never Java source</td>
+            <td>Forces Python-idiomatic implementation; prevents literal Java translation</td>
+            <td>The Converter cannot reference the original Java logic to resolve ambiguity; must rely entirely on the architecture and tests</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Type safety enforcement</td>
+            <td>mypy <code>--strict</code> as a mandatory gate before pytest</td>
+            <td>Type errors cascade into multiple test failures; catching them first reduces total LLM retry cycles needed</td>
+            <td><code>--strict</code> is unforgiving — third-party libraries without type stubs require <code>--ignore-missing-imports</code>; complex generics can produce false positives</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Test generation strategy</td>
+            <td>Three separate agents (Functional + Golden Master + Auditor) instead of one</td>
+            <td>Each agent has a tightly-scoped objective; the Auditor adds a quality pass neither generator would perform on its own</td>
+            <td>Three LLM calls in Step 2 instead of one; though two of the three run in parallel, cost is higher than a single-agent approach</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Human gates</td>
+            <td>Mandatory y/n prompt after each step — no configurable threshold</td>
+            <td>An AI pipeline migrating business-critical Java code requires explicit human accountability at each stage; no automated quality score is reliable enough to skip review</td>
+            <td>Fully automated pipelines are not possible; a human must be present for each module. Acceptable for migration projects; not suitable for high-volume automated translation</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Java parsing approach</td>
+            <td>Regex patterns in ASTChecker instead of a Java AST parser</td>
+            <td>Avoids a JVM or <code>javalang</code> dependency; sufficiently precise for structural completeness checking</td>
+            <td>Regex cannot handle all Java constructs; inner classes, annotations, and generics may be misidentified. Non-blocking design mitigates the impact of false negatives.</td>
+          </tr>
+          <tr class="decision-row">
+            <td>Translation memory</td>
+            <td>Qdrant vector search as a best-effort lookup, not required infrastructure</td>
+            <td>Improves generation quality progressively over a migration project without making it a hard dependency</td>
+            <td>In-memory mode resets on exit; no cross-session learning without a persistent Qdrant instance. The quality benefit is marginal on the first few modules.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div><!-- /.main -->
+</div><!-- /.layout -->
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks  = document.querySelectorAll('.nav-link');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
