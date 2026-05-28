@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+# Some comment
 
 
 # Default models per provider — override any of these via .env
